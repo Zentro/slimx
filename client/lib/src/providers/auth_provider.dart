@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:client/src/app_http_client.dart';
 // import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 // import 'package:background_fetch/background_fetch.dart';
 import 'package:client/src/app_logger.dart';
@@ -10,9 +9,9 @@ import 'dart:convert';
 class AuthProvider extends ChangeNotifier {
   bool _isLoggedIn = false; // The no-no variable
   late String apiUrl;
-  final String loginUriPath = '/login';
-  final String registerUriPath = '/register';
-  final String logoutUriPath = '/logout';
+  final String loginUriPath = 'login';
+  final String registerUriPath = 'register';
+  final String logoutUriPath = 'logout';
   late String _err;
   String get error => _err;
 
@@ -51,6 +50,7 @@ class AuthProvider extends ChangeNotifier {
       );
 
       // store login token
+      notifyListeners();
     } catch (e) {
       AppLogger.instance.e(e);
       // You can throw an exception here and catch it in the UI layer to
@@ -70,32 +70,16 @@ class AuthProvider extends ChangeNotifier {
         'phone': phone,
       };
 
-      final response = await http.post(
-        Uri.parse(apiUrl).resolve(registerUriPath),
+      final response = await AppHttpClient.post(
+       registerUriPath,
         headers: {
           'Content-Type': 'application/json',
         },
         body: jsonEncode(registerData),
       );
 
-      // check if the HTTP response code is 200
-      if (response.statusCode == 200) {
-        AppLogger.instance
-            .i("AuthProvider()._login: HTTP/${response.statusCode}");
-        // login was successful
-        final Map<String, dynamic> responseData = json.decode(response.body);
-
-        // store the JWT localled with shared_preferences
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        prefs.setString('login_token', responseData['login_token']);
-        notifyListeners();
-      } else {
-        AppLogger.instance
-            .w("AuthProvider().login: HTTP/${response.statusCode}");
-        // login failed
-        throw Exception(
-            'You failed to do something in registration or whatever');
-      }
+      // store user and token
+      notifyListeners();
     } catch (e) {
       AppLogger.instance.e(e);
       throw Exception(
@@ -106,7 +90,18 @@ class AuthProvider extends ChangeNotifier {
   // Provide an asynchronous function to handle user logout
   Future<void> logout() async {
     _isLoggedIn = false;
-    // TODO: clear token
+
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? authHeaderValue = prefs.getString('auth');
+
+    // will log you out regardless
+    final _ = await AppHttpClient.post(
+      logoutUriPath,
+      headers: {
+        'Authorization': authHeaderValue ?? '',
+      },
+    );
+    prefs.setString('auth', '');
     notifyListeners();
   }
 }

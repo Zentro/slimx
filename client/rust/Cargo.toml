@@ -7,4 +7,15 @@ edition = "2021"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
+bnum = "0.9.1"
+curve25519-dalek = { version = "4.1.1", features = ["legacy_compatibility"] }
+pqc_kyber = { version = "0.7.1", features = ["kyber1024"]}
+sha2 = "0.10.8"
+x25519-dalek = { version = "2.0.0", features = ["static_secrets", "reusable_secrets"] }
+rand = "0.8.5"
+hkdf = "0.12.3"
+serde_json = "1.0.108"
+hex = "0.4.3"
+reqwest = { version = "0.11.22", features = ["json", "blocking"] }
+aes-gcm = "0.10.3"
 flutter_rust_bridge = "=2.0.0-dev.24"

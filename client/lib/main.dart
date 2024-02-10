@@ -57,8 +57,8 @@ class App extends StatelessWidget {
       home: Consumer2<AuthProvider, AppSupportDirectoryProvider>(
         builder: (context, authProvider, appSupportDirectoryProvider, _) {
           return authProvider.getAuthState
-              ? const InboxScreen()
-              : const LoginScreen();
+              ? const LoginScreen()
+              : const InboxScreen();
         },
       ),
     );

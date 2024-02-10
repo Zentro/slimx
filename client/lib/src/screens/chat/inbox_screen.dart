@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 // import 'package:fmr/src/screens/appearance_settings_screen.dart';
 // import 'package:fmr/src/screens/privacy_settings_screen.dart';
-// import 'package:fmr/src/screens/chat_screen.dart';
+import 'package:client/src/screens/chat/chat_screen.dart';
 
 class InboxScreen extends StatefulWidget {
   const InboxScreen({Key? key}) : super(key: key);
@@ -77,11 +77,11 @@ class _InboxScreen extends State<InboxScreen> {
             subtitle: Text('Subject of the email'),
             trailing: Text('2h ago'), // You can use a more complex widget here
             onTap: () {
-              // Handle tap on the email
-              /*Navigator.push(
+              // Handle tap on the email ROUTE TO IT
+              Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => ChatScreen()),
-              );*/
+              );
             },
           );
         },
