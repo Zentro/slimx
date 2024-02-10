@@ -1,24 +1,65 @@
 import 'package:flutter/material.dart';
-import 'package:client/src/rust/api/simple.dart';
+// import 'package:client/src/rust/api/simple.dart';
 import 'package:client/src/rust/frb_generated.dart';
+import 'package:client/src/app_logger.dart';
+import 'package:client/src/providers/auth_provider.dart';
+import 'package:client/src/providers/app_support_directory_provider.dart';
+import 'package:client/src/screens/auth/login_screen.dart';
+import 'package:client/src/screens/chat/inbox_screen.dart';
+import 'package:platform/platform.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized(); 
+  
+  const LocalPlatform platform = LocalPlatform();
+  AppLogger.instance.i('''
+
+
+ ___      _______  _______  ___   _______  _______ 
+|   |    |   _   ||       ||   | |       ||   _   |
+|   |    |  |_|  ||_     _||   | |    ___||  |_|  |
+|   |    |       |  |   |  |   | |   |___ |       |
+|   |___ |       |  |   |  |   | |    ___||       |
+|       ||   _   |  |   |  |   | |   |    |   _   |
+|_______||__| |__|  |___|  |___| |___|    |__| |__|
+
+\n\n      By Rafael Galvan, Phuc Dang, Jeff Dong
+\nDart: ${platform.version} 
+Platform: ${platform.operatingSystem}
+Hostname: ${platform.localHostname}
+  ''');
+
+  // todo: move this later
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  prefs.setString('apiUrl', 'http://localhost:8080'); // Hard-coded default
+
   await RustLib.init();
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => AppSupportDirectoryProvider())
+      ],
+      child: const App(),
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class App extends StatelessWidget {
+  const App({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(title: const Text('flutter_rust_bridge quickstart')),
-        body: Center(
-          child: Text(
-              'Action: Call Rust `greet("Tom")`\nResult: `${greet(name: "Tom")}`'),
-        ),
+      debugShowCheckedModeBanner: false,
+      home: Consumer2<AuthProvider, AppSupportDirectoryProvider>(
+        builder: (context, authProvider, appSupportDirectoryProvider, _) {
+          return authProvider.getAuthState
+              ? const InboxScreen()
+              : const LoginScreen();
+        },
       ),
     );
   }
