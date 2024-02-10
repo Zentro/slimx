@@ -4,7 +4,6 @@ import 'package:client/src/app_logger.dart';
 import 'package:client/src/rust/api/simple.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:convert';
 
 class AppSupportDirectoryProvider extends ChangeNotifier {
   String _appSupportDirectoryPath = '';

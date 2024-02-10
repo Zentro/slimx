@@ -40,13 +40,13 @@ class _ChatScreen extends State<ChatScreen> {
             child: TextField(
               controller: _textController,
               onSubmitted: _handleSubmitted,
-              decoration: InputDecoration.collapsed(
+              decoration: const InputDecoration.collapsed(
                 hintText: 'Message',
               ),
             ),
           ),
           IconButton(
-            icon: Icon(Icons.send),
+            icon: const Icon(Icons.send),
             onPressed: () => _handleSubmitted(_textController.text),
           ),
         ],
@@ -58,7 +58,7 @@ class _ChatScreen extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Chat'),
+        title: const Text('Chat'),
       ),
       body: Column(
         children: <Widget>[
@@ -70,7 +70,7 @@ class _ChatScreen extends State<ChatScreen> {
               itemCount: _messages.length,
             ),
           ),
-          Divider(height: 1.0),
+          const Divider(height: 1.0),
           _buildTextComposer(),
         ],
       ),
@@ -81,7 +81,7 @@ class _ChatScreen extends State<ChatScreen> {
 class ChatMessage extends StatelessWidget {
   final Message message;
 
-  ChatMessage({required this.message});
+  const ChatMessage({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -89,9 +89,8 @@ class ChatMessage extends StatelessWidget {
     final Color oddItemColor = colorScheme.primary.withOpacity(0.05);
     final Color evenItemColor = colorScheme.primary.withOpacity(0.15);
     final bool isMe = message.isMe;
-    final ThemeData theme = Theme.of(context);
     return Container(
-      margin: EdgeInsets.symmetric(vertical: 10.0),
+      margin: const EdgeInsets.symmetric(vertical: 10.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -99,7 +98,7 @@ class ChatMessage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: <Widget>[
-                Text(message.sender, style: TextStyle(fontSize: 10)),
+                Text(message.sender, style: const TextStyle(fontSize: 10)),
                 Container(
                   margin: const EdgeInsets.only(top: 2.0),
                   padding: const EdgeInsets.all(12.0),

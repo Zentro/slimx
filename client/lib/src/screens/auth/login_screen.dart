@@ -57,13 +57,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildDesktopScreen() {
     return Container(
-      child: Text('Desktop'),
+      child: const Text('Desktop'),
     );
   }
 
   Widget _buildTabletScreen() {
     return Container(
-      child: Text('Tablet'),
+      child: const Text('Tablet'),
     );
   }
 
