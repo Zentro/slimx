@@ -72,13 +72,15 @@ class _ChatScreenState extends State<ChatScreen> {
                 }
 
                 final message = jsonDecode(snapshot.data.toString());
-                print(snapshot.connectionState);
-
-                _messages.add(Message(
-                  text: message['msg'],
-                  sender: message['sender'],
-                  isMe: message['isMe'],
-                ));
+                for (var i in message) {
+                  _messages.insert(
+                      0,
+                      Message(
+                        text: i['msg'],
+                        sender: i['sender'],
+                        isMe: i['isMe'],
+                      ));
+                }
 
                 return ListView.builder(
                   reverse: true,
@@ -123,11 +125,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _handleSubmitted(String text) {
     _textController.clear();
-    Message message = Message(text: text, sender: 'User', isMe: true);
-    _messages.insert(0, message);
-    setState(() {
-      //isLoading = true; // Set loading state to true
-    });
+    Message message = Message(text: text, sender: 'Me', isMe: true);
+    //_messages.insert(0, message);
+    // setState(() {
+    //   //isLoading = true; // Set loading state to true
+    // });
     channel.sink.add(jsonEncode(message.toJson()));
   }
 }
