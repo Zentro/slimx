@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 class AiAssistantScreen extends StatefulWidget {
   // final String chatID;
   // final String authToken;
+  final String startingPrompt;
+  final String name;
 
-  const AiAssistantScreen({Key? key, /*required this.chatID, required this.authToken*/}) : super(key: key);
+  const AiAssistantScreen({Key? key, required this.startingPrompt, required this.name}) : super(key: key);
 
   @override
   State<AiAssistantScreen> createState() => _AiAssistantScreenState();
@@ -25,9 +27,10 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   }
 
   void initializeModel() {
-    _messages.add(Message(text: 'You are a friendly assistant. You know lots of fun facts and are estatic to share them with the world.', sender: 'Buddy', isMe: false));
+    //_messages.add(Message(text: 'You are a friendly assistant. You know lots of fun facts and are estatic to share them with the world.', sender: 'Buddy', isMe: false));
     // _handleSubmitted('Hello there! How are you Today?');
-    _messages.add(Message(text: 'Hello there! How are you today?', sender: 'User', isMe: true));
+    _messages.add(Message(text: widget.startingPrompt, sender: widget.name, isMe: false));
+    _messages.add(Message(text: 'Say a greeting and introduce yourself.', sender: 'User', isMe: true));
   }
 
   OpenAIChatCompletionChoiceMessageModel formatMessage(bool isMe, String text) {
@@ -56,7 +59,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
     List<OpenAIChatCompletionChoiceMessageModel> messageHistory = convertExistingHistory();
     Future<OpenAIChatCompletionModel> chatCompletion = OpenAI.instance.chat.create(
-      model: "gpt-3.5-turbo",
+      model: "gpt-3.5-turbo-0125",
       // seed: 6,
       messages: messageHistory,
       temperature: 0.5,
@@ -86,14 +89,14 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                   }
                   _messages.add(Message(
                     text: messageText,
-                    sender: "Buddy",
+                    sender: widget.name,
                     isMe: false,
                   ));
 
                   return ListView.builder(
                     reverse: true,
                     padding: const EdgeInsets.all(8.0),
-                    itemCount: _messages.length,
+                    itemCount: _messages.length-2,
                     itemBuilder: (_, int index) {
                       return ChatMessage(message: _messages[_messages.length - index - 1]);
                     },
