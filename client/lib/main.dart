@@ -59,7 +59,7 @@ class App extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/inbox': (context) => const InboxScreen(),
-        '/chat': (context) => const ChatScreen(),
+        //'/chat': (context) => const ChatScreen(),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
       },

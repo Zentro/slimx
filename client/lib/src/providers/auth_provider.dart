@@ -78,6 +78,11 @@ class AuthProvider extends ChangeNotifier {
         body: jsonEncode(registerData),
       );
 
+      final String? token = response.headers['auth'];
+
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      prefs.setString('auth', token!);
+
       // store user and token
       notifyListeners();
     } catch (e) {
