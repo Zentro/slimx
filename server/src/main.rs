@@ -31,13 +31,14 @@ mod filters {
     ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
         let users = warp::any().map(move || users.clone());
         let chat = warp::path("chat")
-            .and(warp::path::param::<u32>())
+            .and(warp::path::param::<u64>())
             .and(warp::ws())
             .and(users.clone())
             .and(with_auth(iss.clone()))
-            .map(|chat_id, ws: warp::ws::Ws, users, iss| {
+            .and(warp::header("authorization"))
+            .map(|chat_id, ws: warp::ws::Ws, users, iss, tok: String| {
                 // This will call our function if the handshake succeeds.
-                ws.on_upgrade(move |socket| handlers::chat(iss, socket, users, chat_id))
+                ws.on_upgrade(move |socket| handlers::chat(iss, tok, socket, users, chat_id))
             });
 
         login(iss.clone())
@@ -133,9 +134,9 @@ mod handlers {
         Argon2, PasswordVerifier, PasswordHash
     };
     use dotenvy::dotenv;
-    use std::{env, collections::HashMap};
+    use std::{collections::HashMap, env, time::{SystemTime, UNIX_EPOCH}};
 
-    use crate::{logger::{self, LogLevel}, schema::chats};
+    use crate::{logger::{self, LogLevel}, schema::{chats, messages}};
 
     use super::{
         diesel_models::*,
@@ -429,16 +430,8 @@ mod handlers {
     }
 
     pub async fn chat(
-        iss: Issuer, ws: WebSocket, users: Users, chat_id: u64
+        iss: Issuer, tok: String, ws: WebSocket, users: Users, chat_id: u64
     ) {
-        // let payload: auth::Payload = match iss.verify(&login_token) {
-        //     Some(payload) => payload,
-        //     None => {
-        //         let _ = ws.close().await;
-        //         return
-        //     },
-        // };
-
         // Sockets that talk to the user
         let (mut user_ws_tx, mut user_ws_rx) = ws.split();
 
@@ -446,9 +439,132 @@ mod handlers {
         let (tx, rx) = mpsc::unbounded_channel::<Message>();
         let mut rx = UnboundedReceiverStream::new(rx);
         
-        
+        // Verify token
+        let payload: auth::Payload = match iss.verify(&tok) {
+            Some(payload) => payload,
+            None => {
+                user_ws_tx.close();
+                return
+            },
+        };
 
-        users.write().await.insert(payload.sub_id, tx);
+        logger::log(LogLevel::Info, &format!(
+            "User {} has entered chat_id {}", payload.sub, chat_id
+        ));
+
+        let conn = &mut establish_connection();
+
+        // Get user details of this chat
+        let chat: Chat = chats::table
+            .filter(chats::id.eq(chat_id))
+            .select(Chat::as_select())
+            .get_result(conn)
+            .unwrap();
+        let members: Vec<User> = users::table
+            .filter(users::id.eq(chat.a).or(users::id.eq(chat.b)))
+            .select(User::as_select())
+            .load(conn)
+            .unwrap();
+
+        // Query for all messages in this chat...
+        let messages: Vec<crate::diesel_models::Message> = messages::table
+            .filter(messages::chat_id.eq(chat_id))
+            .order(messages::created.asc())
+            .select(crate::diesel_models::Message::as_select())
+            .load(conn)
+            .unwrap();
+
+        // Make an array of all messages accordingly to MessageDetails
+        let mut messages_toret: Vec<MessageDetails> = vec!();
+        for message in messages.clone() {
+            let created: u64 = message.created.timestamp().try_into().unwrap();
+            let sender: String = 
+                if message.user_id == members[0].id {
+                    members[0].username.clone()
+                } else {
+                    members[1].username.clone()
+                };
+            let isMe: bool = message.user_id == payload.sub_id;
+            let msg: String = message.msg;
+            let to_add: MessageDetails = MessageDetails {created, sender, isMe, msg};
+            messages_toret.push(to_add);
+        }
+
+        // Send this message array to the user
+        user_ws_tx.send(Message::text(serde_json::to_string(&messages_toret).unwrap()))
+            .unwrap_or_else(|e| {
+                eprintln!("websocket send error: {}", e);
+            })
+            .await;
+
+        // Officially add yourself to the users list
+        tokio::task::spawn(async move {
+            while let Some(message) = rx.next().await {
+                user_ws_tx
+                    .send(message)
+                    .unwrap_or_else(|e| {
+                        eprintln!("websocket send error: {}", e);
+                    })
+                    .await;
+            }
+        });
+        users.write().await.insert(payload.sub_id, tx.clone());
+
+        let other: u64 = if payload.sub_id == chat.a {chat.b} else {chat.a};
+        
+        // Listen for user's messages and broadcast to the other user if they are 
+        // connnected
+        while let Some(result) = user_ws_rx.next().await {
+            let msg = match result {
+                Ok(msg) => {
+                    let parsed = match msg.to_str() {
+                        Ok(m) => m.to_owned(),
+                        Err(_) => break,
+                    };
+                    serde_json::from_str::<serde_json::Value>(&parsed).unwrap()["text"].as_str().unwrap().to_owned()
+                },
+                Err(_) => {
+                    break;
+                }
+            };
+            let new_msg = NewMessage {
+                user_id: payload.sub_id,
+                chat_id,
+                msg: msg.clone(),
+            };
+            diesel::insert_into(messages::table)
+                .values(new_msg)
+                .execute(conn).unwrap();
+            let sender: String = 
+                if payload.sub_id == members[0].id {
+                    members[0].username.clone()
+                } else {
+                    members[1].username.clone()
+                };
+            let created = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            let isMe = true;
+            let to_sendback = [MessageDetails {created, sender: sender.clone(), isMe, msg: msg.clone()}];
+            tx.send(Message::text(serde_json::to_string(&to_sendback).unwrap()))
+                .unwrap_or_else(|e| {
+                    eprintln!("websocket send error: {}", e);
+                });
+
+            // Check if other is currently connected in the users list
+            match &users.read().await.get(&other) {
+                Some(other_ws_tx) => {
+                    let isMe: bool = false;
+                    let other_send = [MessageDetails {created, sender, isMe, msg: msg}];
+                    other_ws_tx.send(Message::text(serde_json::to_string(&other_send).unwrap()))
+                        .unwrap_or_else(|e| {
+                            eprintln!("websocket send error: {}", e);
+                        });
+                },
+                None => (),
+            }
+        }
+        println!("done sending");
+
+        users.write().await.remove(&payload.sub_id);
     }
 
     pub async fn get_inbox(

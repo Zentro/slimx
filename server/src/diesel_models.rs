@@ -23,7 +23,7 @@ pub struct User {
     pub phone: Option<String>
 }
 
-#[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
+#[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq, Clone)]
 #[diesel(belongs_to(User, foreign_key = user_id))]
 #[diesel(table_name = messages)]
 #[diesel(check_for_backend(diesel::mysql::Mysql))]
@@ -33,7 +33,7 @@ pub struct Message {
     pub updated: Option<NaiveDateTime>,
     pub user_id: u64,
     pub chat_id: u64,
-    pub msg: Vec<u8>
+    pub msg: String
 }
 
 #[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
@@ -157,4 +157,12 @@ impl NewHandshake {
             ct: None,
         }
     }
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = messages)]
+pub struct NewMessage {
+    pub user_id: u64,
+    pub chat_id: u64,
+    pub msg: String
 }
