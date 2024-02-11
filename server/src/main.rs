@@ -1,15 +1,16 @@
 pub mod diesel_models;
 pub mod http_models;
 pub mod schema;
+mod logger;
 
 #[tokio::main]
 async fn main() {
     let issuer = http_models::new_issuer();
-    let conns = http_models::new_conn_list();
+    let users = http_models::Users::default();
+
+    let api = filters::server(issuer, users);
     
-    let api = filters::server(issuer, conns);
-    
-    warp::serve(api).run(([127, 0, 0, 1], 8080)).await;
+    warp::serve(api).run(([172, 17, 13, 36], 8080)).await;
 }
 
 mod filters {
@@ -18,29 +19,43 @@ mod filters {
     use serde::de::DeserializeOwned;
     use warp::Filter;
 
+    use crate::logger::{self, LogLevel};
+
     use super::{
         handlers,
         http_models::*
     };
 
     pub fn server(
-        iss: Issuer, conns: Connections
+        iss: Issuer, users: Users
     ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-        login(iss.clone(), conns.clone())
+        let users = warp::any().map(move || users.clone());
+        let chat = warp::path("chat")
+            .and(warp::path::param::<u32>())
+            .and(warp::ws())
+            .and(users.clone())
+            .and(with_auth(iss.clone()))
+            .map(|chat_id, ws: warp::ws::Ws, users, iss| {
+                // This will call our function if the handshake succeeds.
+                ws.on_upgrade(move |socket| handlers::chat(iss, socket, users, chat_id))
+            });
+
+        login(iss.clone())
             .or(register())
             .or(upload_keys(iss.clone()))
             .or(init_handshake(iss.clone()))
             .or(fill_handshake(iss.clone()))
+            .or(get_inbox(iss.clone()))
+            .or(chat)
     }
 
     pub fn login(
-        iss: Issuer, conns: Connections
+        iss: Issuer
     ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
         warp::path!("login")
             .and(warp::post())
             .and(body::<LoginForm>())
             .and(with_auth(iss))
-            .and(with_list(conns))
             .and_then(handlers::login)
     }
 
@@ -57,7 +72,7 @@ mod filters {
         warp::path!("keys")
             .and(warp::post())
             .and(with_auth(iss))
-            .and(warp::header("login_token"))
+            .and(warp::header("authorization"))
             .and(body::<KeysForm>())
             .and_then(handlers::upload_keys)
     }
@@ -68,7 +83,7 @@ mod filters {
         warp::path!("handshakes")
             .and(warp::post())
             .and(with_auth(iss))
-            .and(warp::header("login_token"))
+            .and(warp::header("authorization"))
             .and(warp::query::<HashMap<String, String>>())
             .and_then(handlers::init_handshake)
     }
@@ -79,17 +94,23 @@ mod filters {
         warp::path!("handshakes")
             .and(warp::put())
             .and(with_auth(iss))
-            .and(warp::header("login_token"))
+            .and(warp::header("authorization"))
             .and(body::<FillHandshake>())
             .and_then(handlers::fill_handshake)
     }
 
-    fn with_auth(iss: Issuer) -> impl Filter<Extract = (Issuer,), Error = std::convert::Infallible> + Clone {
-        warp::any().map(move || iss.clone())
+    pub fn get_inbox(
+        iss: Issuer
+    ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+        warp::path!("inbox")
+            .and(warp::get())
+            .and(with_auth(iss))
+            .and(warp::header("authorization"))
+            .and_then(handlers::get_inbox)
     }
 
-    fn with_list(conns: Connections) -> impl Filter<Extract = (Connections,), Error = std::convert::Infallible> + Clone {
-        warp::any().map(move || conns.clone())
+    fn with_auth(iss: Issuer) -> impl Filter<Extract = (Issuer,), Error = std::convert::Infallible> + Clone {
+        warp::any().map(move || iss.clone())
     }
 
     fn body<T: std::marker::Send + DeserializeOwned>() -> impl Filter<Extract = (T,), Error = warp::Rejection> + Clone {
@@ -98,8 +119,12 @@ mod filters {
 }
 
 mod handlers {
-    use diesel::{mysql::MysqlConnection, prelude::*};
-    use warp::{hyper::Body, http::{StatusCode, Response}};
+    use futures_util::{SinkExt, StreamExt, TryFutureExt};
+    use serde_json::json;
+    use tokio::sync::{mpsc, RwLock};
+    use tokio_stream::wrappers::UnboundedReceiverStream;
+    use diesel::{mysql::MysqlConnection, prelude::*, sql_query};
+    use warp::{filters::ws::{Message, WebSocket}, http::{Response, StatusCode}, hyper::Body};
     use argon2::{
         password_hash::{
             rand_core::OsRng,
@@ -109,7 +134,8 @@ mod handlers {
     };
     use dotenvy::dotenv;
     use std::{env, collections::HashMap};
-    use serde_json::json;
+
+    use crate::{logger::{self, LogLevel}, schema::chats};
 
     use super::{
         diesel_models::*,
@@ -133,7 +159,7 @@ mod handlers {
     }
 
     pub async fn login(
-        info: LoginForm, iss: Issuer, conns: Connections,
+        info: LoginForm, iss: Issuer
     ) -> Result<impl warp::Reply, warp::Rejection> {
         use crate::schema::users::dsl::*;
 
@@ -147,6 +173,7 @@ mod handlers {
             .load(conn)
             .unwrap();
         if res.is_empty() {
+            logger::log(LogLevel::Info, &format!("Cannot find user's email {}", &info.email));
             return Ok(empty_response(StatusCode::NOT_FOUND));
         }
 
@@ -154,23 +181,24 @@ mod handlers {
         let user = res.first().unwrap();
         let parsed_hash = PasswordHash::new(&user.password).unwrap();
         if Argon2::default().verify_password(info.password.as_bytes(), &parsed_hash).is_err() {
+            logger::log(LogLevel::Info, &format!("Wrong password for {}", &info.email));
             return Ok(empty_response(StatusCode::UNAUTHORIZED));
         }
 
-        // TODO! Don't use token as the connections key :3
         // Issue a jwt auth token
         let token = iss.issue(user.id, &user.email);
-        // Change to be websocket connection????
-        let todo = 1;
-        conns.lock().await.insert(token.clone(), todo);
+        let sent = LoginComplete { 
+            id: user.id, username: user.username.clone(), email: user.email.clone(), phone: user.phone.clone()
+        };
+        let response_body = serde_json::to_string(&sent).unwrap();
 
-        let response_body = serde_json::to_string(&json!({"login_token": token})).unwrap();
-        
         let response = Response::builder()
+            .header("authorization", token)
             .status(StatusCode::OK)
             .body(Body::from(response_body))
             .unwrap();
 
+        logger::log(LogLevel::Info, &format!("User {} has logged in", &info.email));
         Ok(response)
     }
 
@@ -196,7 +224,10 @@ mod handlers {
         }) {
             Ok(_) => Ok(StatusCode::OK),
             // change to better deal with cases
-            Err(_) => Ok(StatusCode::BAD_REQUEST),
+            Err(e) => {
+                logger::log(LogLevel::Info, &format!("Error: {}", e.to_string()));
+                Ok(StatusCode::BAD_REQUEST)
+            },
         }
     }
 
@@ -395,6 +426,77 @@ mod handlers {
             // change to better deal with cases
             Err(_) => Ok(empty_response(StatusCode::BAD_REQUEST)),
         }
+    }
+
+    pub async fn chat(
+        iss: Issuer, ws: WebSocket, users: Users, chat_id: u64
+    ) {
+        // let payload: auth::Payload = match iss.verify(&login_token) {
+        //     Some(payload) => payload,
+        //     None => {
+        //         let _ = ws.close().await;
+        //         return
+        //     },
+        // };
+
+        // Sockets that talk to the user
+        let (mut user_ws_tx, mut user_ws_rx) = ws.split();
+
+        // Sockets that communicate between async threads
+        let (tx, rx) = mpsc::unbounded_channel::<Message>();
+        let mut rx = UnboundedReceiverStream::new(rx);
+        
+        
+
+        users.write().await.insert(payload.sub_id, tx);
+    }
+
+    pub async fn get_inbox(
+        iss: Issuer, login_token: String
+    ) -> Result<impl warp::Reply, warp::Rejection> {
+        let payload: auth::Payload = verify_token!(iss, login_token);
+        
+        // Query which chats this user is in
+        let conn = &mut establish_connection();
+
+        let chats: Vec<Chat> = chats::table
+            .filter(chats::a.eq(payload.sub_id).or(chats::b.eq(payload.sub_id)))
+            .select(Chat::as_select())
+            .load(conn)
+            .unwrap();
+
+        let mut to_ret: Vec<serde_json::Value> = vec!();
+
+        for chat in chats {
+            if chat.a == payload.sub_id {
+                let other: String = users::table
+                    .filter(users::id.eq(chat.b))
+                    .select(users::username)
+                    .get_result(conn)
+                    .unwrap();
+                to_ret.push(json!({
+                    "username": other,
+                    "chat_id": chat.id.to_string()
+                }));
+            } else {
+                let other: String = users::table
+                    .filter(users::id.eq(chat.a))
+                    .select(users::username)
+                    .get_result(conn)
+                    .unwrap();
+                to_ret.push(json!({
+                    "username": other,
+                    "chat_id": chat.id.to_string()
+                }));
+            }
+        }
+        let response_body = serde_json::to_string(&to_ret).unwrap();
+        let response = Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from(response_body))
+            .unwrap();
+
+        Ok(response)
     }
 
     fn empty_response(status: StatusCode) -> Response<Body> {

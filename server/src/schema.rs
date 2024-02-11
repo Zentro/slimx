@@ -1,14 +1,10 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
-    conversations (id) {
+    chats (id) {
         id -> Unsigned<Bigint>,
-        created -> Timestamp,
-        updated -> Nullable<Timestamp>,
-        sender_id -> Unsigned<Bigint>,
-        receiver_id -> Unsigned<Bigint>,
-        #[max_length = 255]
-        msg -> Varbinary,
+        a -> Unsigned<Bigint>,
+        b -> Unsigned<Bigint>,
     }
 }
 
@@ -25,6 +21,18 @@ diesel::table! {
         pqkem_ct -> Nullable<Varchar>,
         #[max_length = 255]
         ct -> Nullable<Varchar>,
+    }
+}
+
+diesel::table! {
+    messages (id) {
+        id -> Unsigned<Bigint>,
+        created -> Timestamp,
+        updated -> Nullable<Timestamp>,
+        user_id -> Unsigned<Bigint>,
+        chat_id -> Unsigned<Bigint>,
+        #[max_length = 255]
+        msg -> Varbinary,
     }
 }
 
@@ -83,13 +91,16 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(messages -> chats (chat_id));
+diesel::joinable!(messages -> users (user_id));
 diesel::joinable!(onetime_keys -> users (user_id));
 diesel::joinable!(onetime_pqkem -> users (user_id));
 diesel::joinable!(perm_keys -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
-    conversations,
+    chats,
     handshakes,
+    messages,
     onetime_keys,
     onetime_pqkem,
     perm_keys,

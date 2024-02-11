@@ -1,9 +1,10 @@
 use std::{sync::Arc, collections::HashMap};
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex, RwLock};
 
 use serde_derive::{Deserialize, Serialize};
+use warp::filters::ws::Message;
 pub type Issuer = Arc<auth::Issuer>;
-pub type Connections = Arc<Mutex<HashMap<String, i32>>>;
+pub type Users = Arc<RwLock<HashMap<u64, mpsc::UnboundedSender<Message>>>>;
 
 pub fn new_issuer() -> Issuer {
     use rand::{rngs::OsRng, RngCore};
@@ -11,10 +12,6 @@ pub fn new_issuer() -> Issuer {
     OsRng.fill_bytes(&mut hmac_key);
 
     Arc::new(auth::Issuer::new(hmac_key))
-}
-
-pub fn new_conn_list() -> Connections {
-    Arc::new(Mutex::new(HashMap::new()))
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -62,4 +59,12 @@ pub struct FillHandshake {
     pub ek: String,
     pub pqkem_ct: String,
     pub ct: String
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct LoginComplete {
+    pub id: u64,
+    pub username: String,
+    pub email: String,
+    pub phone: Option<String>
 }
