@@ -4,6 +4,7 @@ import 'package:client/src/app_logger.dart';
 import 'package:client/src/rust/api/simple.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppSupportDirectoryProvider extends ChangeNotifier {
   String _appSupportDirectoryPath = '';
@@ -30,6 +31,7 @@ class AppSupportDirectoryProvider extends ChangeNotifier {
         await _loadOrCreateKeysFile(keysFilePath);
         AppLogger.instance.i('The userKeys.json was was created.');
       } else {
+        await _loadKeysFile(keysFilePath);
         AppLogger.instance.i('The userKeys.json already exists, skipping...');
       }
 
@@ -40,8 +42,20 @@ class AppSupportDirectoryProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadKeysFile(String filepath) async {
+    File file = File(filepath);
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setString('keys', await file.readAsString());
+  }
+
   Future<void> _loadOrCreateKeysFile(String filepath) async {
     File file = File(filepath);
-    await file.writeAsString(generateKeys());
+
+    var keys = generateKeys();
+
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setString('keys', keys);
+
+    await file.writeAsString(keys);
   }
 }

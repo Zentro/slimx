@@ -15,5 +15,11 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 String generateKeys({dynamic hint}) =>
     RustLib.instance.api.generateKeys(hint: hint);
 
+/// * Called upon registration to the server. Will publish all stored public
+/// * keys.
+///
+Future<String> signAndPublish({required String keyJson, dynamic hint}) =>
+    RustLib.instance.api.signAndPublish(keyJson: keyJson, hint: hint);
+
 String greet({required String name, dynamic hint}) =>
     RustLib.instance.api.greet(name: name, hint: hint);

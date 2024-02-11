@@ -132,6 +132,13 @@ class _ChatScreenState extends State<ChatScreen> {
     // });
     channel.sink.add(jsonEncode(message.toJson()));
   }
+
+  @override
+  void dispose() {
+    // Close WebSocket connection when disposing the widget
+    channel.sink.close();
+    super.dispose();
+  }
 }
 
 class Message {

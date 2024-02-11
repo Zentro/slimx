@@ -103,6 +103,86 @@ pub fn generate_keys() -> String {
     dump
 }
 
+/**
+ * Called upon registration to the server. Will publish all stored public
+ * keys.
+ */
+pub fn sign_and_publish(key_json: String) -> String{
+    // Generate all the nonces needed for signatures
+    let mut csprg = StdRng::from_entropy();
+    let mut z: [[u8; 64]; ONETIME_PQKEM+2] = [[0; 64]; ONETIME_PQKEM+2];
+    for i in 0..ONETIME_PQKEM+2 {
+        csprg.fill_bytes(&mut z[i]);
+    }
+    
+    let keys: Value = serde_json::from_str(&key_json).unwrap();
+
+    // Get secret identity key for signing
+    let s_ik_sec = keys["ik_sec"].as_str().unwrap();
+    let mut ik_sec: [u8; 32] = [0; 32];
+    hex::decode_to_slice(s_ik_sec, &mut ik_sec).unwrap();
+
+    // Get all the hex-form public keys from json
+    let s_spk_pub = keys["spk_pub"].as_str().unwrap();
+    let s_pqspk_pub = keys["pqspk_pub"].as_str().unwrap();
+    let s_pqopk_pub_arr = &keys["pqopk_pub_arr"];
+
+    // Convert to byte arrays for signing
+    let mut spk_pub: [u8; 32] = [0; 32];
+    hex::decode_to_slice(s_spk_pub, &mut spk_pub).unwrap();
+    let mut pqspk_pub: [u8; KYBER_PUBLICKEYBYTES] = [0; KYBER_PUBLICKEYBYTES];
+    hex::decode_to_slice(s_pqspk_pub, &mut pqspk_pub).unwrap();
+    
+    // Sign the PUBLIC versions of the curve prekey,
+    // last-resort pqkem prekey, and the one-time pqkem prekeys
+    // USING the ik_sec
+    let spk_pub_sig = xeddsa::sign(
+        ik_sec.clone(),
+        spk_pub.to_vec(),
+        z[0].to_vec()
+    );
+    let pqspk_pub_sig = xeddsa::sign(
+        ik_sec.clone(),
+        pqspk_pub.to_vec(),
+        z[1].to_vec()
+    );
+    let mut pqopk_pub_sig_arr: Vec<[u8; 64]> = vec![];
+    for i in 0..ONETIME_PQKEM {
+        let s_pqopk_pub = s_pqopk_pub_arr[i].as_str().unwrap();
+        let mut pqopk_pub: [u8; KYBER_PUBLICKEYBYTES] = [0; KYBER_PUBLICKEYBYTES];
+        hex::decode_to_slice(s_pqopk_pub, &mut pqopk_pub).unwrap();
+        let to_add = xeddsa::sign(
+            ik_sec.clone(),
+            pqopk_pub.to_vec(),
+            z[i+2].to_vec()
+        );
+        pqopk_pub_sig_arr.push(to_add);
+    }
+
+    // Get signature as hex encoded data
+    let s_spk_pub_sig: String = hex::encode(spk_pub_sig);
+    let s_pqspk_pub_sig: String = hex::encode(pqspk_pub_sig);
+    let mut s_pqopk_pub_sig_arr: Vec<String> = vec![];
+    for i in 0..ONETIME_PQKEM {
+        let to_add = hex::encode(pqopk_pub_sig_arr[i]);
+        s_pqopk_pub_sig_arr.push(to_add);
+    }
+
+    // Send the registration POST request
+    let body = serde_json::to_string(&json!({
+        "ik": keys["ik_pub"],
+        "spk": keys["spk_pub"],
+        "spk_sig": s_spk_pub_sig,
+        "pqspk": keys["pqspk_pub"],
+        "pqspk_sig": s_pqspk_pub_sig,
+        "opk_arr": keys["opk_pub_arr"],
+        "pqopk_arr": keys["pqopk_pub_arr"],
+        "pqopk_sig_arr": s_pqopk_pub_sig_arr,
+    })).unwrap();
+
+    body
+}
+
 #[flutter_rust_bridge::frb(sync)] // Synchronous mode for simplicity of the demo
 pub fn greet(name: String) -> String {
     format!("Hello, {name}!")

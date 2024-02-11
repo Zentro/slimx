@@ -1,3 +1,4 @@
+import 'package:client/src/rust/api/simple.dart';
 import 'package:client/src/user.dart';
 import 'package:flutter/material.dart';
 import 'package:client/src/app_http_client.dart';
@@ -49,8 +50,22 @@ class AuthProvider extends ChangeNotifier {
           'Content-Type': 'application/json',
         },
       );
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 418) {
         final String token = response.headers['authorization'] ?? "null";
+
+        if (response.statusCode == 418) {
+          SharedPreferences prefs = await SharedPreferences.getInstance();
+          var keys = prefs.getString('keys');
+          var requestForm = await signAndPublish(keyJson: keys ?? "");
+          final _ = await AppHttpClient.post(
+            'keys',
+            body: requestForm,
+            headers: {
+              'Content-Type': 'application/json',
+              "authorization": token,
+            },
+          );
+        }
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         prefs.setString('auth', token);

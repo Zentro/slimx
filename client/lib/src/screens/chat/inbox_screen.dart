@@ -4,14 +4,11 @@ import 'package:client/src/screens/auth/login_screen.dart';
 import 'package:client/src/screens/chat/ai_assistant_screen.dart';
 import 'package:client/src/screens/chat/floating_action_button.dart';
 import 'package:client/src/screens/settings/appearance_screen.dart';
+import 'package:client/src/screens/settings/handshake_request_screen.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-// import 'package:fmr/src/screens/appearance_settings_screen.dart';
-// import 'package:fmr/src/screens/privacy_settings_screen.dart';
 import 'package:client/src/screens/chat/chat_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:web_socket_channel/io.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 
 class InboxScreen extends StatefulWidget {
   const InboxScreen({Key? key}) : super(key: key);
@@ -221,8 +218,10 @@ class _InboxScreen extends State<InboxScreen> {
               title: const Text('Invite a Friend'),
               leading: const Icon(Icons.person_add_outlined),
               onTap: () {
-                // Update the state of the app.
-                // ...
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HandshakeRequestScreen()),
+                );
               },
             ),
             ListTile(
