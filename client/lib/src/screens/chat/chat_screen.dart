@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:web_socket_channel/io.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 // todo: implement in rust to cache messages in memory
 class Message {
@@ -17,11 +19,20 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreen extends State<ChatScreen> {
-  final List<Message> _messages = [
-    Message(text: 'hi', sender: 'Jane Doe', isMe: true),
-    Message(text: 'please stop texting me....', sender: 'John Doe', isMe: false),
-  ];
+  final List<Message> _messages = [];
   final TextEditingController _textController = TextEditingController();
+  late final String chatRoom;
+  final WebSocketChannel channel = IOWebSocketChannel.connect('ws://localhost:9000/ws');
+
+  @override
+  void initState() {
+    super.initState();
+    channel.stream.listen((message) {
+      setState(() {
+        _messages.add(Message(text: message['text'], sender: message['sender'], isMe: message['isMe]'] ?? false));
+      });
+    });
+  }
 
   void _handleSubmitted(String text) {
     _textController.clear();

@@ -1,3 +1,5 @@
+import 'package:client/src/screens/auth/register_screen.dart';
+import 'package:client/src/screens/chat/chat_screen.dart';
 import 'package:flutter/material.dart';
 // import 'package:client/src/rust/api/simple.dart';
 import 'package:client/src/rust/frb_generated.dart';
@@ -11,8 +13,8 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized(); 
-  
+  WidgetsFlutterBinding.ensureInitialized();
+
   const LocalPlatform platform = LocalPlatform();
   AppLogger.instance.i('''
 
@@ -54,6 +56,13 @@ class App extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      initialRoute: '/',
+      routes: {
+        '/inbox': (context) => const InboxScreen(),
+        '/chat': (context) => const ChatScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+      },
       home: Consumer2<AuthProvider, AppSupportDirectoryProvider>(
         builder: (context, authProvider, appSupportDirectoryProvider, _) {
           return authProvider.getAuthState
