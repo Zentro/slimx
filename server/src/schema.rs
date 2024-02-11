@@ -32,7 +32,7 @@ diesel::table! {
         user_id -> Unsigned<Bigint>,
         chat_id -> Unsigned<Bigint>,
         #[max_length = 255]
-        msg -> Varbinary,
+        msg -> Varchar,
     }
 }
 

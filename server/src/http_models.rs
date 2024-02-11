@@ -1,4 +1,5 @@
 use std::{sync::Arc, collections::HashMap};
+use chrono::NaiveDateTime;
 use tokio::sync::{mpsc, Mutex, RwLock};
 
 use serde_derive::{Deserialize, Serialize};
@@ -67,4 +68,12 @@ pub struct LoginComplete {
     pub username: String,
     pub email: String,
     pub phone: Option<String>
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct MessageDetails {
+    pub created: u64,
+    pub sender: String,
+    pub isMe: bool,
+    pub msg: String
 }
