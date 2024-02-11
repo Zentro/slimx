@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:web_socket_channel/io.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 // todo: implement in rust to cache messages in memory
 class Message {
@@ -17,11 +19,20 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreen extends State<ChatScreen> {
-  final List<Message> _messages = [
-    Message(text: 'hi', sender: 'Jane Doe', isMe: true),
-    Message(text: 'please stop texting me....', sender: 'John Doe', isMe: false),
-  ];
+  final List<Message> _messages = [];
   final TextEditingController _textController = TextEditingController();
+  late final String chatRoom;
+  final WebSocketChannel channel = IOWebSocketChannel.connect('ws://localhost:9000/ws');
+
+  @override
+  void initState() {
+    super.initState();
+    channel.stream.listen((message) {
+      setState(() {
+        _messages.add(Message(text: message['text'], sender: message['sender'], isMe: message['isMe]'] ?? false));
+      });
+    });
+  }
 
   void _handleSubmitted(String text) {
     _textController.clear();
@@ -40,13 +51,13 @@ class _ChatScreen extends State<ChatScreen> {
             child: TextField(
               controller: _textController,
               onSubmitted: _handleSubmitted,
-              decoration: InputDecoration.collapsed(
+              decoration: const InputDecoration.collapsed(
                 hintText: 'Message',
               ),
             ),
           ),
           IconButton(
-            icon: Icon(Icons.send),
+            icon: const Icon(Icons.send),
             onPressed: () => _handleSubmitted(_textController.text),
           ),
         ],
@@ -58,7 +69,7 @@ class _ChatScreen extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Chat'),
+        title: const Text('Chat'),
       ),
       body: Column(
         children: <Widget>[
@@ -70,7 +81,7 @@ class _ChatScreen extends State<ChatScreen> {
               itemCount: _messages.length,
             ),
           ),
-          Divider(height: 1.0),
+          const Divider(height: 1.0),
           _buildTextComposer(),
         ],
       ),
@@ -81,7 +92,7 @@ class _ChatScreen extends State<ChatScreen> {
 class ChatMessage extends StatelessWidget {
   final Message message;
 
-  ChatMessage({required this.message});
+  const ChatMessage({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -89,9 +100,8 @@ class ChatMessage extends StatelessWidget {
     final Color oddItemColor = colorScheme.primary.withOpacity(0.05);
     final Color evenItemColor = colorScheme.primary.withOpacity(0.15);
     final bool isMe = message.isMe;
-    final ThemeData theme = Theme.of(context);
     return Container(
-      margin: EdgeInsets.symmetric(vertical: 10.0),
+      margin: const EdgeInsets.symmetric(vertical: 10.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -99,7 +109,7 @@ class ChatMessage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: <Widget>[
-                Text(message.sender, style: TextStyle(fontSize: 10)),
+                Text(message.sender, style: const TextStyle(fontSize: 10)),
                 Container(
                   margin: const EdgeInsets.only(top: 2.0),
                   padding: const EdgeInsets.all(12.0),

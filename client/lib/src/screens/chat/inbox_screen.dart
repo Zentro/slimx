@@ -32,20 +32,20 @@ class _InboxScreen extends State<InboxScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Help'),
-          content: Text('This is a small dialog.'),
+          title: const Text('Help'),
+          content: const Text('This is a small dialog.'),
           actions: <Widget>[
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: Text('Copy to clipboard'),
+              child: const Text('Copy to clipboard'),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: Text('Close'),
+              child: const Text('Close'),
             ),
           ],
         );
@@ -54,10 +54,11 @@ class _InboxScreen extends State<InboxScreen> {
   }
 
 
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar (
-        title: Text('Chats'),
+        title: const Text('Chats'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout_outlined),
@@ -74,13 +75,13 @@ class _InboxScreen extends State<InboxScreen> {
               child: Text(emails[index][0]),
             ),
             title: Text(emails[index]),
-            subtitle: Text('Subject of the email'),
-            trailing: Text('2h ago'), // You can use a more complex widget here
+            subtitle: const Text('Subject of the email'),
+            trailing: const Text('2h ago'), // You can use a more complex widget here
             onTap: () {
               // Handle tap on the email ROUTE TO IT
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => ChatScreen()),
+                MaterialPageRoute(builder: (context) => const ChatScreen()),
               );
             },
           );
