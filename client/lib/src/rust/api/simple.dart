@@ -30,5 +30,8 @@ Future<String?> initHandshake(
     RustLib.instance.api.initHandshake(
         keyBundle: keyBundle, sIkPub: sIkPub, sIkSec: sIkSec, hint: hint);
 
+Future<void> completeHandshake({dynamic hint}) =>
+    RustLib.instance.api.completeHandshake(hint: hint);
+
 String greet({required String name, dynamic hint}) =>
     RustLib.instance.api.greet(name: name, hint: hint);

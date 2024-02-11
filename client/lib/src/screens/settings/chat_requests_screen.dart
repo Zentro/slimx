@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:client/src/app_http_client.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,7 +12,8 @@ class ChatRequestScreen extends StatefulWidget {
 }
 
 class _ChatRequestScreen extends State<ChatRequestScreen> {
-  List<String> _pendingRequests = []; // List to store pending requests
+  List<Map<String, dynamic>> _pendingRequests =
+      []; // List to store pending requests
 
   @override
   void initState() {
@@ -23,12 +27,34 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
   }
 
   Future<void> _loadPendingRequests() async {
-    // Load pending requests from SharedPreferences
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _pendingRequests = prefs.getStringList('pendingRequests') ?? [];
-    });
+    var token = prefs.getString('auth') ?? "";
+    final response = await AppHttpClient.get(
+      'pending',
+      headers: {
+        "authorization": token,
+        //"email": email,
+      },
+    );
+
+    if (response.statusCode == 200) {
+      print(response.body);
+      List<dynamic> initData = jsonDecode(response.body);
+      // For example, you can print the data to the console
+      // print(initData);
+      setState(() {
+        _pendingRequests =
+            initData.map((e) => e as Map<String, dynamic>).toList();
+      });
+    } else {
+      print(response.statusCode);
+      print("^^^^^^^^FAILED TO FETCH PENDING REQUESTS");
+    }
   }
+
+  Future<void> _acceptRequest() async {}
+
+  Future<void> _denyRequest() async {}
 
   @override
   Widget build(BuildContext context) {
@@ -36,20 +62,41 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
       appBar: AppBar(
         title: const Text('Chat Requests'),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              itemCount: _pendingRequests.length,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  title: Text(_pendingRequests[index]),
-                  // Additional features like cancel request can be added here
-                );
-              },
+      body: RefreshIndicator(
+        onRefresh: _loadPendingRequests,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                itemCount: _pendingRequests.length,
+                itemBuilder: (context, index) {
+                  return ListTile(
+                    title: Text(_pendingRequests[index]["email"]),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.check),
+                          onPressed: () {
+                            // Handle accepting the chat request
+                            _acceptRequest();
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () {
+                            // Handle denying the chat request
+                            _denyRequest();
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

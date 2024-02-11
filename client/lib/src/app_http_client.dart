@@ -20,6 +20,17 @@ class AppHttpClient {
     return response;
   }
 
+  static Future<http.Response> put(String uri,
+    {dynamic body, Map<String, String>?headers}) async {
+      final baseUrl = await _getApiUrl();
+      final url = Uri.parse('$baseUrl/$uri');
+
+      final response = await http.put(url,
+      headers: headers, body: body != null ? jsonEncode(body) : null);
+
+      return response;
+    }
+
   static Future<http.Response> post(String uri,
       {dynamic body, Map<String, String>? headers}) async {
     final baseUrl = await _getApiUrl();
