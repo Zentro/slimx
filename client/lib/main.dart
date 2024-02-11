@@ -35,7 +35,7 @@ Platform: ${platform.operatingSystem}
 Hostname: ${platform.localHostname}
   ''');
 
-  OpenAI.apiKey = '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';
+  OpenAI.apiKey = 'nuhuh';
   OpenAI.showLogs = true;
 
   // todo: move this later

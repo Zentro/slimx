@@ -1,35 +1,27 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:io';
 import 'package:dart_openai/dart_openai.dart';
-
-// todo: implement in rust to cache messages in memory
-class Message {
-  final String text;
-  final String sender;
-  final bool isMe;
-
-  Message({required this.text, required this.sender, required this.isMe});
-}
+import 'package:flutter/material.dart';
 
 class AiAssistantScreen extends StatefulWidget {
-  const AiAssistantScreen({Key? key}) : super(key: key);
+  // final String chatID;
+  // final String authToken;
+
+  const AiAssistantScreen({Key? key, /*required this.chatID, required this.authToken*/}) : super(key: key);
 
   @override
-  State<AiAssistantScreen> createState() => _AiAssistantScreen ();
+  State<AiAssistantScreen> createState() => _AiAssistantScreenState();
 }
 
-class _AiAssistantScreen extends State<AiAssistantScreen> {
-  final List<Message> _messages = [
-    Message(text: 'hi', sender: 'Jane Doe', isMe: true),
-    Message(text: 'please stop texting me....', sender: 'John Doe', isMe: false),
-  ];
+class _AiAssistantScreenState extends State<AiAssistantScreen> {
+  late Stream<OpenAIStreamChatCompletionModel> chatStream;
+  final List<Message> _messages = [];
   final TextEditingController _textController = TextEditingController();
-  late final String chatRoom;
-  // final WebSocketChannel channel = IOWebSocketChannel.connect('ws://localhost:9000/ws');
 
   @override
   void initState() {
     super.initState();
-
+    // _connectToWebSocket();
   }
 
   OpenAIChatCompletionChoiceMessageModel formatMessage(bool isMe, String text) {
@@ -49,22 +41,62 @@ class _AiAssistantScreen extends State<AiAssistantScreen> {
     return messageHistory;
   }
 
-  void _handleSubmitted(String text) {
-    _textController.clear();
-    Message message = Message(text: text, sender: 'User', isMe: true);
-    List<OpenAIChatCompletionChoiceMessageModel> messageHistory = convertExistingHistory();
-    messageHistory.add(formatMessage(message.isMe, message.text));
+  String extractMessage(String mess) {
+    RegExp exp = RegExp(r'.*message": "(.*)".*');
+    String result = exp.firstMatch(mess)![1]!;
+    return result;
+  }
 
-    // OpenAIChatCompletionModel chatCompletion = await OpenAI.instance.chat.create(
-    //   model: "gpt-3.5-turbo",
-    //   seed: 6,
-    //   messages: messageHistory,
-    //   temperature: 0.2,
-    // );
+  String getMessageFromRequest(AsyncSnapshot<OpenAIStreamChatCompletionModel> snapshot) {
+    return snapshot.data!.choices.first.delta.content!.first.text!;
+  }
 
-    setState(() {
-      _messages.insert(0, message);
-    });
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Chat'),
+      ),
+      body: Column(
+        children: <Widget>[
+          Flexible(
+            child: StreamBuilder(
+              stream: chatStream,
+              builder: (BuildContext context, AsyncSnapshot<OpenAIStreamChatCompletionModel> snapshot) {
+                if (snapshot.hasError) {
+                  return Text('Error: ${snapshot.error}');
+                }
+
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                String messageText = extractMessage(getMessageFromRequest(snapshot));
+
+                _messages.add(Message(
+                  text: messageText,
+                  sender: "Buddy",
+                  isMe: false,
+                ));
+
+                return ListView.builder(
+                  reverse: true,
+                  padding: const EdgeInsets.all(8.0),
+                  itemCount: _messages.length,
+                  itemBuilder: (_, int index) {
+                    return ChatMessage(message: _messages[index]);
+                  },
+                );
+              },
+            ),
+          ),
+          const Divider(height: 1.0),
+          _buildTextComposer(),
+        ],
+      ),
+    );
   }
 
   Widget _buildTextComposer() {
@@ -90,34 +122,44 @@ class _AiAssistantScreen extends State<AiAssistantScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Chat'),
-      ),
-      body: Column(
-        children: <Widget>[
-          Flexible(
-            child: ListView.builder(
-              reverse: true,
-              padding: const EdgeInsets.all(8.0),
-              itemBuilder: (_, int index) => ChatMessage(message: _messages[index]),
-              itemCount: _messages.length,
-            ),
-          ),
-          const Divider(height: 1.0),
-          _buildTextComposer(),
-        ],
-      ),
+  void _handleSubmitted(String text) {
+    _textController.clear();
+    Message message = Message(text: text, sender: 'User', isMe: true);
+
+    List<OpenAIChatCompletionChoiceMessageModel> messageHistory = convertExistingHistory();
+    messageHistory.add(formatMessage(message.isMe, message.text));
+
+    chatStream = OpenAI.instance.chat.createStream(
+      model: "gpt-3.5-turbo",
+      messages: messageHistory,
+      seed: 423,
+      n: 2,
     );
+
+    _messages.insert(0, message);
+  }
+}
+
+class Message {
+  final String text;
+  final String sender;
+  final bool isMe;
+
+  Message({required this.text, required this.sender, required this.isMe});
+
+  Map<String, dynamic> toJson() {
+    return {
+      'text': text,
+      'sender': sender,
+      'isMe': isMe,
+    };
   }
 }
 
 class ChatMessage extends StatelessWidget {
   final Message message;
 
-  const ChatMessage({super.key, required this.message});
+  const ChatMessage({Key? key, required this.message}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
