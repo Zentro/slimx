@@ -1,3 +1,6 @@
+import 'package:client/src/models/user_model.dart';
+import 'package:client/src/screens/chat/inbox_screen.dart';
+import 'package:client/src/user.dart';
 import 'package:flutter/material.dart';
 import 'package:responsive_builder/responsive_builder.dart';
 import 'package:client/src/screens/auth/register_screen.dart';
@@ -14,6 +17,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   late String email = '';
   late String password = '';
+  late User user = User();
   String err = '';
 
   @override
@@ -23,12 +27,10 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  Future<void> _login(AuthProvider authProvider) async {
+  Future<void> _login(authProvider, Function(User) onComplete) async {
     try {
-      await authProvider.login(email, password);
-      // Navigate to the next screen upon successful login
-      // For example:
-      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => NextScreen()));
+      user = await authProvider.login(email, password);
+      onComplete(user);
     } catch (e) {
       setState(() {
         err = e.toString();
@@ -74,7 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            LoginForm(onFormSubmitted: (formEmail, formPassword) {
+            LoginForm(onFormSubmitted: (formEmail, formPassword) async {
               setState(() {
                 email = formEmail;
                 password = formPassword;
@@ -82,8 +84,14 @@ class _LoginScreenState extends State<LoginScreen> {
               // Safely access AuthProvider using Provider.of
               final authProvider =
                   Provider.of<AuthProvider>(context, listen: false);
-              // TODO: return user and notify changes
-              _login(authProvider);
+              await _login(authProvider, (updatedUser) {
+                // Provider.of<UserModel>(context, listen: false)
+                //     .updateUser(updatedUser);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const InboxScreen()),
+                );
+              }); //blocking?
             })
           ]),
     );
@@ -182,7 +190,8 @@ class _LoginFormState extends State<LoginForm> {
                   // Handle "Create account" button press
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                    MaterialPageRoute(
+                        builder: (context) => const RegisterScreen()),
                   );
                 },
                 child: const Text('Create account'),
