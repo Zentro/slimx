@@ -24,11 +24,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _register(AuthProvider authProvider) async {
     try {
-      print(email);
       await authProvider.register(email, password, username, phone);
-      // Navigate to the next screen upon successful login
-      // For example:
-      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => NextScreen()));
     } catch (e) {
       setState(() {
         err = e.toString();
@@ -91,6 +87,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
               final authProvider =
                   Provider.of<AuthProvider>(context, listen: false);
               _register(authProvider);
+              Navigator.pushReplacement(
+                context, 
+                MaterialPageRoute(builder: (context) => const LoginScreen()));
             })
           ]),
     );

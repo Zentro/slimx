@@ -56,6 +56,7 @@ Hostname: ${platform.localHostname}
 
 class App extends StatelessWidget {
   const App({super.key});
+  final bool isDark = true;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +69,7 @@ class App extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
       },
+      theme: ThemeData(brightness: isDark ? Brightness.dark : Brightness.light),
       home: Consumer2<AuthProvider, AppSupportDirectoryProvider>(
         builder: (context, authProvider, appSupportDirectoryProvider, _) {
           return authProvider.getAuthState

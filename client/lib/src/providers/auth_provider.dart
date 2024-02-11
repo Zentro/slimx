@@ -93,13 +93,13 @@ class AuthProvider extends ChangeNotifier {
         body: registerData,
       );
 
-      final String token = response.headers['Authorization'] ?? "null";
-
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      prefs.setString('auth', token);
-
-      // store user and token
-      notifyListeners();
+      if (response.statusCode == 200) {
+        notifyListeners();
+        //return user;
+      } else {
+        throw Exception(
+            'Failed to register. Please check your credentials and try again.');
+      }
     } catch (e) {
       AppLogger.instance.e(e);
       throw Exception(

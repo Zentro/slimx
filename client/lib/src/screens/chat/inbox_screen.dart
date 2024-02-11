@@ -1,5 +1,8 @@
 import 'package:client/src/app_http_client.dart';
+import 'package:client/src/providers/auth_provider.dart';
+import 'package:client/src/screens/auth/login_screen.dart';
 import 'package:client/src/screens/chat/ai_assistant_screen.dart';
+import 'package:client/src/screens/settings/appearance_screen.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 // import 'package:fmr/src/screens/appearance_settings_screen.dart';
@@ -36,12 +39,10 @@ class _InboxScreen extends State<InboxScreen> {
         isLoading = true; // Set loading state to true
       });
 
-      final response = await AppHttpClient.get(
-        chatsUri,
-        headers: {
-          "authorization": authToken,
-        } // add headers
-      );
+      final response = await AppHttpClient.get(chatsUri, headers: {
+        "authorization": authToken,
+      } // add headers
+          );
 
       print(response.body);
 
@@ -113,31 +114,45 @@ class _InboxScreen extends State<InboxScreen> {
           IconButton(
             icon: const Icon(Icons.logout_outlined),
             tooltip: 'Log out',
-            onPressed: () {},
+            onPressed: () {
+              AuthProvider().logout();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+              );
+            },
           ),
         ],
       ),
-
-      body: ListView.builder(
-        itemCount: data.length,
-        itemBuilder: (BuildContext context, int index) {
-          // Build list items based on the received data
-          // Example:
-          return ListTile(
-            title: Text(data[index]['username']),
-            onTap: () {
-              Navigator.push(
-                context,
-                //TODO: this is where you need to add the AiAssistantScreen to this list btw
-                MaterialPageRoute(
-                    builder: (context) => ChatScreen(
+      body: RefreshIndicator(
+        onRefresh: fetchData,
+        child: ListView.builder(
+          itemCount: data.length,
+          itemBuilder: (BuildContext context, int index) {
+            // Build list items based on the received data
+            // Example:
+            return ListTile(
+              leading: CircleAvatar(
+                child: Text(data[index]['username'][0]),
+              ),
+              title: Text(data[index]['username']),
+              trailing:
+                  Text('2h ago'), // You can use a more complex widget here
+              onTap: () {
+                Navigator.push(
+                  context,
+                  //TODO: this is where you need to add the AiAssistantScreen to this list btw
+                  MaterialPageRoute(
+                      builder: (context) => ChatScreen(
                             chatID: data[index]['chat_id'],
                             authToken: authToken,
+                            fromUsername: data[index]['username'],
                           )),
-              );
-            },
-          );
-        },
+                );
+              },
+            );
+          },
+        ),
       ),
       // move this to a widget
       drawer: Drawer(
@@ -188,10 +203,10 @@ class _InboxScreen extends State<InboxScreen> {
               title: const Text('Appearance'),
               leading: const Icon(Icons.palette_outlined),
               onTap: () {
-                /*Navigator.push(
+                Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => AppearanceSettingsScreen()),
-                );*/
+                  MaterialPageRoute(builder: (context) => const AppearanceSettingsScreen()),
+                );
               },
             ),
             ListTile(
