@@ -14,14 +14,20 @@ class AiAssistantScreen extends StatefulWidget {
 }
 
 class _AiAssistantScreenState extends State<AiAssistantScreen> {
-  late Stream<OpenAIStreamChatCompletionModel> chatStream;
+  late Future<OpenAIChatCompletionModel> test;
   final List<Message> _messages = [];
   final TextEditingController _textController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // _connectToWebSocket();
+    initializeModel();
+  }
+
+  void initializeModel() {
+    _messages.add(Message(text: 'You are a friendly assistant. You know lots of fun facts and are estatic to share them with the world.', sender: 'Buddy', isMe: false));
+    // _handleSubmitted('Hello there! How are you Today?');
+    _messages.add(Message(text: 'Hello there! How are you today?', sender: 'User', isMe: true));
   }
 
   OpenAIChatCompletionChoiceMessageModel formatMessage(bool isMe, String text) {
@@ -41,18 +47,22 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     return messageHistory;
   }
 
-  String extractMessage(String mess) {
-    RegExp exp = RegExp(r'.*message": "(.*)".*');
-    String result = exp.firstMatch(mess)![1]!;
-    return result;
-  }
-
-  String getMessageFromRequest(AsyncSnapshot<OpenAIStreamChatCompletionModel> snapshot) {
-    return snapshot.data!.choices.first.delta.content!.first.text!;
+  String getMessageFromRequest(AsyncSnapshot<OpenAIChatCompletionModel> snapshot) {
+    return snapshot.data!.choices.first.message.content!.first.text!;
   }
 
   @override
   Widget build(BuildContext context) {
+
+    List<OpenAIChatCompletionChoiceMessageModel> messageHistory = convertExistingHistory();
+    Future<OpenAIChatCompletionModel> chatCompletion = OpenAI.instance.chat.create(
+      model: "gpt-3.5-turbo",
+      // seed: 6,
+      messages: messageHistory,
+      temperature: 0.5,
+      // toolChoice: "auto",
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chat'),
@@ -60,35 +70,39 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       body: Column(
         children: <Widget>[
           Flexible(
-            child: StreamBuilder(
-              stream: chatStream,
-              builder: (BuildContext context, AsyncSnapshot<OpenAIStreamChatCompletionModel> snapshot) {
+            child: FutureBuilder<OpenAIChatCompletionModel>(
+              future: chatCompletion,
+              builder: (BuildContext context, AsyncSnapshot<OpenAIChatCompletionModel> snapshot) {
                 if (snapshot.hasError) {
                   return Text('Error: ${snapshot.error}');
                 }
+                else if(snapshot.hasData) {
 
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                  String messageText = getMessageFromRequest(snapshot);
+                  if (messageText == _messages[_messages.length-2].text) {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  }
+                  _messages.add(Message(
+                    text: messageText,
+                    sender: "Buddy",
+                    isMe: false,
+                  ));
+
+                  return ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.all(8.0),
+                    itemCount: _messages.length,
+                    itemBuilder: (_, int index) {
+                      return ChatMessage(message: _messages[_messages.length - index - 1]);
+                    },
+                  );
+                } else {
                   return const Center(
                     child: CircularProgressIndicator(),
                   );
                 }
-
-                String messageText = extractMessage(getMessageFromRequest(snapshot));
-
-                _messages.add(Message(
-                  text: messageText,
-                  sender: "Buddy",
-                  isMe: false,
-                ));
-
-                return ListView.builder(
-                  reverse: true,
-                  padding: const EdgeInsets.all(8.0),
-                  itemCount: _messages.length,
-                  itemBuilder: (_, int index) {
-                    return ChatMessage(message: _messages[index]);
-                  },
-                );
               },
             ),
           ),
@@ -122,21 +136,11 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     );
   }
 
-  void _handleSubmitted(String text) {
+  void _handleSubmitted(String text) async {
     _textController.clear();
     Message message = Message(text: text, sender: 'User', isMe: true);
-
-    List<OpenAIChatCompletionChoiceMessageModel> messageHistory = convertExistingHistory();
-    messageHistory.add(formatMessage(message.isMe, message.text));
-
-    chatStream = OpenAI.instance.chat.createStream(
-      model: "gpt-3.5-turbo",
-      messages: messageHistory,
-      seed: 423,
-      n: 2,
-    );
-
-    _messages.insert(0, message);
+    _messages.add(message);
+    setState(() {});
   }
 }
 
