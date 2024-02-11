@@ -52,11 +52,11 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
     }
   }
 
-  Future<void> _acceptRequest(String email) async {
+  Future<void> _acceptRequest(String email, int handshake_id) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var token = prefs.getString('auth') ?? "";
     final response = await AppHttpClient.post(
-      'complete',
+      'complete/$handshake_id',
       headers: {
         "authorization": token
       }
@@ -95,7 +95,7 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
                           icon: const Icon(Icons.check),
                           onPressed: () {
                             // Handle accepting the chat request
-                            _acceptRequest(_pendingRequests[index]["email"]);
+                            _acceptRequest(_pendingRequests[index]["email"], _pendingRequests[index]["handshake_id"]);
                           },
                         ),
                         IconButton(
