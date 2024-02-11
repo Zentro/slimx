@@ -1,3 +1,4 @@
+import 'package:client/src/screens/chat/ai_assistant_screen.dart';
 import 'package:flutter/material.dart';
 // import 'package:fmr/src/screens/appearance_settings_screen.dart';
 // import 'package:fmr/src/screens/privacy_settings_screen.dart';
@@ -13,6 +14,7 @@ class InboxScreen extends StatefulWidget {
 class _InboxScreen extends State<InboxScreen> {
 
   final List<String> emails = [
+    'Ai Buddy',
     'John Doe',
     'Jane Smith',
     'Alice Johnson',
@@ -53,6 +55,10 @@ class _InboxScreen extends State<InboxScreen> {
     );
   }
 
+  bool isChatAiAssistant(String name) {
+    return name == 'Ai Buddy';
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +87,7 @@ class _InboxScreen extends State<InboxScreen> {
               // Handle tap on the email ROUTE TO IT
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const ChatScreen()),
+                MaterialPageRoute(builder: (context) => isChatAiAssistant(emails[index]) ? const AiAssistantScreen() : const ChatScreen()),
               );
             },
           );

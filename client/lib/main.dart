@@ -11,6 +11,8 @@ import 'package:client/src/screens/chat/inbox_screen.dart';
 import 'package:platform/platform.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dart_openai/dart_openai.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +34,9 @@ Future<void> main() async {
 Platform: ${platform.operatingSystem}
 Hostname: ${platform.localHostname}
   ''');
+
+  OpenAI.apiKey = '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';
+  OpenAI.showLogs = true;
 
   // todo: move this later
   SharedPreferences prefs = await SharedPreferences.getInstance();
