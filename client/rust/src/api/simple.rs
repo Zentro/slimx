@@ -129,6 +129,7 @@ pub fn sign_and_publish(key_json: String) -> String{
     for i in 0..ONETIME_PQKEM+2 {
         csprg.fill_bytes(&mut z[i]);
     }
+    println!("{}", key_json);
 
     let keys: Value = serde_json::from_str(&key_json).unwrap();
 
@@ -161,6 +162,7 @@ pub fn sign_and_publish(key_json: String) -> String{
         pqspk_pub.to_vec(),
         z[1].to_vec()
     );
+
     let mut pqopk_pub_sig_arr: Vec<[u8; 64]> = vec![];
     for i in 0..ONETIME_PQKEM {
         let s_pqopk_pub = s_pqopk_pub_arr[i].as_str().unwrap();
@@ -209,6 +211,7 @@ pub fn init_handshake(key_bundle: String, s_ik_pub: String, s_ik_sec: String) ->
     let mut pqpk_b: [u8; KYBER_PUBLICKEYBYTES] = [0; KYBER_PUBLICKEYBYTES];
     let mut pqpk_b_sig: [u8; 64] = [0; 64];
     let mut opk_b: [u8; 32] = [0; 32];
+    let handshake_id = keys_b["handshake_id"].as_u64().unwrap();
     hex::decode_to_slice(keys_b["ik"].as_str().unwrap(), &mut ik_b).unwrap();
     hex::decode_to_slice(keys_b["spk"].as_str().unwrap(), &mut spk_b).unwrap();
     hex::decode_to_slice(keys_b["spk_sig"].as_str().unwrap(), &mut spk_b_sig).unwrap();
@@ -219,8 +222,8 @@ pub fn init_handshake(key_bundle: String, s_ik_pub: String, s_ik_sec: String) ->
     // Verify signatures
     let b1 = xeddsa::verify(ik_b.clone(), spk_b.to_vec(), spk_b_sig);
     let b2 = xeddsa::verify(ik_b.clone(), pqpk_b.to_vec(), pqpk_b_sig);
-    if b1 || b2 {
-        // Abort
+    if !(b1 || b2) {
+        println!("NULL HERE");
         return None
     }
 
@@ -269,12 +272,17 @@ pub fn init_handshake(key_bundle: String, s_ik_pub: String, s_ik_sec: String) ->
 
     // Construct the JSON
     let body = serde_json::to_string(&json!({
+        "handshake_id": handshake_id,
         "ek": s_ek_pub,
         "pqkem_ct": s_ct,
         "ct": s_handshake,
     })).unwrap();
 
     Some(body)
+}
+
+pub fn complete_handshake() {
+
 }
 
 #[flutter_rust_bridge::frb(sync)] // Synchronous mode for simplicity of the demo
