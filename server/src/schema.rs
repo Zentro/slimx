@@ -17,10 +17,10 @@ diesel::table! {
         ik -> Varchar,
         #[max_length = 255]
         ek -> Nullable<Varchar>,
-        #[max_length = 255]
-        pqkem_ct -> Nullable<Varchar>,
-        #[max_length = 255]
-        ct -> Nullable<Varchar>,
+        pqkem_ct -> Nullable<Text>,
+        ct -> Nullable<Text>,
+        opk_ind -> Integer,
+        pqpk_ind -> Integer,
     }
 }
 
@@ -42,9 +42,7 @@ diesel::table! {
         user_id -> Unsigned<Bigint>,
         #[max_length = 255]
         opk -> Varchar,
-        #[max_length = 255]
-        sig -> Varchar,
-        i -> Unsigned<Integer>,
+        i -> Integer,
     }
 }
 
@@ -52,11 +50,10 @@ diesel::table! {
     onetime_pqkem (id) {
         id -> Unsigned<Bigint>,
         user_id -> Unsigned<Bigint>,
-        #[max_length = 255]
-        pqopk -> Varchar,
+        pqopk -> Text,
         #[max_length = 255]
         sig -> Varchar,
-        i -> Unsigned<Integer>,
+        i -> Integer,
     }
 }
 
@@ -70,8 +67,7 @@ diesel::table! {
         spk -> Varchar,
         #[max_length = 255]
         spk_sig -> Varchar,
-        #[max_length = 255]
-        pqspk -> Varchar,
+        pqspk -> Text,
         #[max_length = 255]
         pqspk_sig -> Varchar,
     }

@@ -58,8 +58,7 @@ pub struct OnetimeKey {
     pub id: u64,
     pub user_id: u64,
     pub opk: String,
-    pub sig: String,
-    pub i: u32
+    pub i: i32
 }
 
 #[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
@@ -71,10 +70,10 @@ pub struct OnetimePqkem {
     pub user_id: u64,
     pub pqopk: String,
     pub sig: String,
-    pub i: u32
+    pub i: i32
 }
 
-#[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
+#[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq, Serialize)]
 #[diesel(belongs_to(User, foreign_key = sender_id))]
 #[diesel(table_name = handshakes)]
 #[diesel(check_for_backend(diesel::mysql::Mysql))]
@@ -85,7 +84,9 @@ pub struct Handshake {
     pub ik: String,
     pub ek: Option<String>,
     pub pqkem_ct: Option<String>,
-    pub ct: Option<String>
+    pub ct: Option<String>,
+    pub pqpk_ind: i32,
+    pub opk_ind: i32
 }
 
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
@@ -122,8 +123,7 @@ pub struct NewPermKeys {
 pub struct NewOnetimeKey {
     pub user_id: u64,
     pub opk: String,
-    pub sig: String,
-    pub i: u32
+    pub i: i32
 }
 
 #[derive(Insertable)]
@@ -132,7 +132,7 @@ pub struct NewOnetimePqkem {
     pub user_id: u64,
     pub pqopk: String,
     pub sig: String,
-    pub i: u32
+    pub i: i32
 }
 
 #[derive(Insertable)]
@@ -143,11 +143,13 @@ pub struct NewHandshake {
     pub ik: String,
     pub ek: Option<String>,
     pub pqkem_ct: Option<String>,
-    pub ct: Option<String>
+    pub ct: Option<String>,
+    pub opk_ind: i32,
+    pub pqpk_ind: i32
 }
 
 impl NewHandshake {
-    pub fn new(sid: u64, rid: u64, ik: String) -> NewHandshake {
+    pub fn new(sid: u64, rid: u64, ik: String, o_ind: i32, pq_ind: i32) -> NewHandshake {
         NewHandshake {
             sender_id: sid,
             receiver_id: rid,
@@ -155,6 +157,8 @@ impl NewHandshake {
             ek: None,
             pqkem_ct: None,
             ct: None,
+            opk_ind: o_ind,
+            pqpk_ind: pq_ind
         }
     }
 }
@@ -165,4 +169,11 @@ pub struct NewMessage {
     pub user_id: u64,
     pub chat_id: u64,
     pub msg: String
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = chats)]
+pub struct NewChat {
+    pub a: u64,
+    pub b: u64
 }

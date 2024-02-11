@@ -47,6 +47,8 @@ mod filters {
             .or(init_handshake(iss.clone()))
             .or(fill_handshake(iss.clone()))
             .or(get_inbox(iss.clone()))
+            .or(get_pending(iss.clone()))
+            .or(complete_handshake(iss.clone()))
             .or(chat)
     }
 
@@ -85,7 +87,7 @@ mod filters {
             .and(warp::post())
             .and(with_auth(iss))
             .and(warp::header("authorization"))
-            .and(warp::query::<HashMap<String, String>>())
+            .and(warp::header("email"))
             .and_then(handlers::init_handshake)
     }
 
@@ -110,12 +112,33 @@ mod filters {
             .and_then(handlers::get_inbox)
     }
 
+    pub fn get_pending(
+        iss: Issuer
+    ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+        warp::path!("pending")
+            .and(warp::get())
+            .and(with_auth(iss))
+            .and(warp::header("authorization"))
+            .and_then(handlers::get_pending)
+    }
+
+    pub fn complete_handshake(
+        iss: Issuer
+    ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+        warp::path!("complete")
+            .and(warp::post())
+            .and(with_auth(iss))
+            .and(warp::header("authorization"))
+            .and(warp::header("handshake_id"))
+            .and_then(handlers::complete_handshake)
+    }
+
     fn with_auth(iss: Issuer) -> impl Filter<Extract = (Issuer,), Error = std::convert::Infallible> + Clone {
         warp::any().map(move || iss.clone())
     }
 
     fn body<T: std::marker::Send + DeserializeOwned>() -> impl Filter<Extract = (T,), Error = warp::Rejection> + Clone {
-        warp::body::content_length_limit(1024 * 16).and(warp::body::json())
+       warp::body::json()
     }
 }
 
@@ -193,13 +216,32 @@ mod handlers {
         };
         let response_body = serde_json::to_string(&sent).unwrap();
 
+        // Check if keys have been uploaded
+        let need_upload: bool = match perm_keys::table
+            .filter(perm_keys::user_id.eq(user.id))
+            .select(PermKeys::as_select())
+            .get_result(conn) {
+                Ok(_) => false,
+                Err(_) => true
+            };
+
         let response = Response::builder()
             .header("authorization", token)
-            .status(StatusCode::OK)
+            .status(
+                if need_upload {
+                    StatusCode::IM_A_TEAPOT
+                } else {
+                    StatusCode::OK
+                }
+            )
             .body(Body::from(response_body))
             .unwrap();
 
-        logger::log(LogLevel::Info, &format!("User {} has logged in", &info.email));
+        if need_upload {
+            logger::log(LogLevel::Info, &format!("User {} is a teapot!", &info.email));
+        } else {
+            logger::log(LogLevel::Info, &format!("User {} has logged in", &info.email));
+        }
         Ok(response)
     }
 
@@ -235,8 +277,14 @@ mod handlers {
     pub async fn upload_keys(
         iss: Issuer, login_token: String, keys: KeysForm
     ) -> Result<impl warp::Reply, warp::Rejection> {
+        logger::log(LogLevel::Debug, &format!(
+            "asdas"
+        ));
         let payload: auth::Payload = verify_token!(iss, login_token);
-        
+        logger::log(LogLevel::Debug, &format!(
+            "User {} is uploading keys", payload.sub
+        ));
+
         // Check for the existence of already uploaded keys
         let conn = &mut establish_connection();
         let res: Vec<PermKeys> = perm_keys::table
@@ -260,11 +308,10 @@ mod handlers {
             pqspk_sig: keys.pqspk_sig,
         };
         let mut onetimekeys: Vec<NewOnetimeKey> = Vec::with_capacity(keys.opk_arr.len());
-        for (i, (opk, sig)) in keys.opk_arr.iter().zip(keys.opk_sig_arr.iter()).enumerate() {
+        for (i, opk) in keys.opk_arr.iter().enumerate() {
             let new = NewOnetimeKey {
                 user_id: payload.sub_id,
                 opk: opk.to_string(),
-                sig: sig.to_string(),
                 i: i.try_into().unwrap()
             };
             onetimekeys.push(new);
@@ -294,23 +341,26 @@ mod handlers {
         }) {
             Ok(_) => Ok(empty_response(StatusCode::OK)),
             // change to better deal with cases
-            Err(_) => Ok(empty_response(StatusCode::BAD_REQUEST)),
+            Err(e) => {
+                println!("{}", e.to_string());
+                Ok(empty_response(StatusCode::BAD_REQUEST))
+            },
         }
     }
 
     pub async fn init_handshake(
-        iss: Issuer, login_token: String, query: HashMap<String, String>
+        iss: Issuer, login_token: String, query: String
     ) -> Result<impl warp::Reply, warp::Rejection> {
         let payload: auth::Payload = verify_token!(iss, login_token);
         let conn = &mut establish_connection();
 
+        logger::log(LogLevel::Debug, &format!(
+            "User is init handshake"
+        ));
+
         // Get receiver object
-        let recv_email = match query.get("email") {
-            Some(q) => q,
-            None => return Ok(empty_response(StatusCode::BAD_REQUEST)),
-        };
         let recv: User = match users::table
-            .filter(users::email.eq(recv_email))
+            .filter(users::email.eq(query))
             .select(User::as_select())
             .get_result(conn) {
                 Ok(b) => b,
@@ -342,19 +392,19 @@ mod handlers {
             .first(conn).ok();
 
         // Check for existence of pqkem onetimes
-        let (recv_pqpk, recv_pqpk_sig) = match recv_pqpk {
+        let (recv_pqpk, recv_pqpk_sig, recv_pqpk_ind) = match recv_pqpk {
             Some(pq) => {
                 let _ = diesel::delete(onetime_pqkem::table.filter(onetime_pqkem::id.eq(pq.id))).execute(conn);
-                (pq.pqopk, pq.sig)
+                (pq.pqopk, pq.sig, pq.i)
             },
-            None => (recv_perms.pqspk, recv_perms.pqspk_sig),
+            None => (recv_perms.pqspk, recv_perms.pqspk_sig, -1),
         };
-        let (recv_opk, recv_opk_sig) = match recv_opk {
+        let (recv_opk, recv_opk_ind) = match recv_opk {
             Some(op) => {
                 let _ = diesel::delete(onetime_keys::table.filter(onetime_keys::id.eq(op.id))).execute(conn);
-                (Some(op.opk), Some(op.sig))
+                (Some(op.opk), op.i)
             },
-            None => (None, None),
+            None => (None, -1),
         };
         
         // Get the sender's identity key for the initial handshake request
@@ -369,7 +419,7 @@ mod handlers {
         // Create a new pending handshake (prior to the actual steps being done)
         let Ok(handshake_id) = conn.transaction::<u64, diesel::result::Error, _>(|conn| {
             diesel::insert_into(handshakes::table)
-                .values(NewHandshake::new(payload.sub_id, recv.id, send_ik.clone()))
+                .values(NewHandshake::new(payload.sub_id, recv.id, send_ik.clone(), recv_opk_ind, recv_pqpk_ind))
                 .execute(conn)?;
             let handshake: Handshake = handshakes::table
                 .filter(
@@ -392,7 +442,7 @@ mod handlers {
             pqpk: recv_pqpk,
             pqpk_sig: recv_pqpk_sig,
             opk: recv_opk,
-            opk_sig: recv_opk_sig,
+
         };
 
         let response_body = serde_json::to_string(&prekey_bundle).unwrap();
@@ -427,6 +477,81 @@ mod handlers {
             // change to better deal with cases
             Err(_) => Ok(empty_response(StatusCode::BAD_REQUEST)),
         }
+    }
+
+    pub async fn complete_handshake(
+        iss: Issuer, login_token: String, handshake_id: u64
+    ) -> Result<impl warp::Reply, warp::Rejection> {
+        // Verify token
+        let payload: auth::Payload = verify_token!(iss, login_token);
+
+        let conn = &mut establish_connection();
+        // Find handshake
+        let shake: Handshake = handshakes::table
+            .filter(handshakes::id.eq(handshake_id))
+            .select(Handshake::as_select())
+            .get_result(conn)
+            .unwrap();
+
+        // New chat
+        diesel::insert_into(chats::table)
+            .values(NewChat {
+                a: shake.sender_id,
+                b: shake.receiver_id
+            })
+            .execute(conn)
+            .unwrap();
+
+        // Delete handshake
+        diesel::delete(handshakes::table.filter(handshakes::id.eq(handshake_id))).execute(conn).unwrap();
+
+        // Return handshake
+        let response_body = serde_json::to_string(&shake).unwrap();
+        let response = Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from(response_body))
+            .unwrap();
+        
+        Ok(response)
+    }
+
+    pub async fn get_pending(
+        iss: Issuer, login_token: String
+    ) -> Result<impl warp::Reply, warp::Rejection> {
+        // Verify token and extract payload
+        let payload: auth::Payload = verify_token!(iss, login_token);
+
+        let conn = &mut establish_connection();
+        // Get all requests that you are on receiving end of
+        let recq: Vec<Handshake> = handshakes::table
+            .filter(handshakes::receiver_id.eq(payload.sub_id))
+            .select(Handshake::as_select())
+            .load(conn)
+            .unwrap();
+
+        // Find sender's name and map to handshake id and send back
+        let mut to_ret: Vec<serde_json::Value> = vec!();
+        for r in recq {
+            let send_id = r.sender_id;
+            let email: String = users::table
+                .filter(users::id.eq(send_id))
+                .select(users::email)
+                .get_result(conn)
+                .unwrap();
+            to_ret.push(json!({
+                "email": email,
+                "handshake_id": r.id
+            }))
+        }
+
+        let response_body = serde_json::to_string(&to_ret).unwrap();
+        println!("{}", response_body);
+        let response = Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from(response_body))
+            .unwrap();
+        
+        Ok(response)
     }
 
     pub async fn chat(
