@@ -76,22 +76,20 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             child: FutureBuilder<OpenAIChatCompletionModel>(
               future: chatCompletion,
               builder: (BuildContext context, AsyncSnapshot<OpenAIChatCompletionModel> snapshot) {
-                if (snapshot.hasError) {
-                  return Text('Error: ${snapshot.error}');
-                }
-                else if(snapshot.hasData) {
-
-                  String messageText = getMessageFromRequest(snapshot);
-                  if (messageText == _messages[_messages.length-2].text) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
+                if(snapshot.hasData || (snapshot.hasError && snapshot.error.toString().contains("Rate limit reached"))) {
+      
+                  String messageText = "Woah there! Please wait a little bit before you ask me again and wait around 20 seconds. Thanks!";
+                  if (snapshot.hasData) {
+                    messageText = getMessageFromRequest(snapshot);
                   }
-                  _messages.add(Message(
-                    text: messageText,
-                    sender: widget.name,
-                    isMe: false,
-                  ));
+
+                  if (messageText != _messages[_messages.length-2].text) {
+                    _messages.add(Message(
+                      text: messageText,
+                      sender: widget.name,
+                      isMe: false,
+                    ));
+                  }
 
                   return ListView.builder(
                     reverse: true,
