@@ -1,14 +1,29 @@
-use std::{fs::{self, File}, io::Write};
-
 use pqc_kyber::*;
 use rand::{rngs::StdRng, SeedableRng};
 use serde_json::{Value, json};
-use x25519_dalek::{StaticSecret, PublicKey};
+use x25519_dalek::{StaticSecret, PublicKey, x25519};
+
+use aes_gcm::{Aes256Gcm, Key, KeyInit, AeadCore, aead::{Payload, Aead}};
+use hkdf::Hkdf;
+use sha2::Sha512;
 
 use super::xeddsa;
 
 const ONETIME_CURVE: usize = 32;
 const ONETIME_PQKEM: usize = 32;
+
+const HKDF_INFO: &[u8; 53] = b"LATIFAProtocol_CURVE25519_SHA-512_CRYSTALS-KYBER-1024";
+const HKDF_SALT: [u8; 64] = [0; 64];
+const HKDF_F: [u8; 32] = [0xFF; 32];
+
+fn kdf(km: Vec<u8>) -> [u8; 32] {
+    let ikm = [&HKDF_F, km.as_slice()].concat();
+    let hk = Hkdf::<Sha512>::new(Some(&HKDF_SALT), &ikm);
+    let mut okm: [u8; 32] = [0; 32];
+    hk.expand(HKDF_INFO, &mut okm)
+        .expect("valid");
+    okm
+}
 
 /**
  
@@ -114,7 +129,7 @@ pub fn sign_and_publish(key_json: String) -> String{
     for i in 0..ONETIME_PQKEM+2 {
         csprg.fill_bytes(&mut z[i]);
     }
-    
+
     let keys: Value = serde_json::from_str(&key_json).unwrap();
 
     // Get secret identity key for signing
@@ -181,6 +196,85 @@ pub fn sign_and_publish(key_json: String) -> String{
     })).unwrap();
 
     body
+}
+
+// Flutter sends back a key bundle when requesting a
+/// connection with someone
+pub fn init_handshake(key_bundle: String, s_ik_pub: String, s_ik_sec: String) -> Option<String> {
+    // Parse the key_bundle into json and extract necessary info
+    let keys_b: Value = serde_json::from_str(&key_bundle).unwrap();
+    let mut ik_b: [u8; 32] = [0; 32];
+    let mut spk_b: [u8; 32] = [0; 32];
+    let mut spk_b_sig: [u8; 64] = [0; 64];
+    let mut pqpk_b: [u8; KYBER_PUBLICKEYBYTES] = [0; KYBER_PUBLICKEYBYTES];
+    let mut pqpk_b_sig: [u8; 64] = [0; 64];
+    let mut opk_b: [u8; 32] = [0; 32];
+    hex::decode_to_slice(keys_b["ik"].as_str().unwrap(), &mut ik_b).unwrap();
+    hex::decode_to_slice(keys_b["spk"].as_str().unwrap(), &mut spk_b).unwrap();
+    hex::decode_to_slice(keys_b["spk_sig"].as_str().unwrap(), &mut spk_b_sig).unwrap();
+    hex::decode_to_slice(keys_b["pqpk"].as_str().unwrap(), &mut pqpk_b).unwrap();
+    hex::decode_to_slice(keys_b["pqpk_sig"].as_str().unwrap(), &mut pqpk_b_sig).unwrap();
+    hex::decode_to_slice(keys_b["opk"].as_str().unwrap(), &mut opk_b).unwrap();
+
+    // Verify signatures
+    let b1 = xeddsa::verify(ik_b.clone(), spk_b.to_vec(), spk_b_sig);
+    let b2 = xeddsa::verify(ik_b.clone(), pqpk_b.to_vec(), pqpk_b_sig);
+    if b1 || b2 {
+        // Abort
+        return None
+    }
+
+    // Just ephemeral secret
+    let ek_sec: StaticSecret = StaticSecret::random_from_rng(StdRng::from_entropy());
+    let ek_pub: PublicKey = PublicKey::from(&ek_sec);
+
+    // PQKEM stuff
+    let (ct, ss) = encapsulate(&pqpk_b, &mut StdRng::from_entropy()).unwrap();
+
+    // Read in the identity key
+    let mut ik_pub: [u8; 32] = [0; 32]; 
+    hex::decode_to_slice(s_ik_pub.as_str(), &mut ik_pub).unwrap();
+    let mut ik_sec: [u8; 32] = [0; 32]; 
+    hex::decode_to_slice(s_ik_sec.as_str(), &mut ik_sec).unwrap();
+
+    // Compute triple diffie hellman
+    // Needs to account for dh4 with OPK
+    let dh1 = x25519(ik_sec.clone(), spk_b.clone());
+    let dh2 = x25519(ek_sec.to_bytes(), ik_b.clone());
+    let dh3 = x25519(ek_sec.to_bytes(), spk_b.clone());
+    let dh4 = x25519(ek_sec.to_bytes(), opk_b.clone());
+
+    let km = [dh1, dh2, dh3, dh4, ss].concat();
+    let sk = kdf(km);
+
+    // Compute associated data
+    let ad = [ik_pub, ik_b].concat();
+
+    // Let the first message of this protocol be the 
+    let aes_key = Key::<Aes256Gcm>::from_slice(&sk);
+    let cipher = Aes256Gcm::new(&aes_key); 
+    let nonce = Aes256Gcm::generate_nonce(&mut StdRng::from_entropy());
+    let payload = Payload {
+        msg: &ik_pub,
+        aad: &ad,
+    };
+    let handshake = cipher.encrypt(&nonce, payload).unwrap();
+
+    // Convert all needed info into hex strings
+    let s_ek_pub = hex::encode(ek_pub.as_bytes());
+    let s_ct = hex::encode(ct);
+    let s_handshake = hex::encode(&handshake);
+    let s_pqpk_b = hex::encode(pqpk_b);
+    let s_opk_b = hex::encode(opk_b);
+
+    // Construct the JSON
+    let body = serde_json::to_string(&json!({
+        "ek": s_ek_pub,
+        "pqkem_ct": s_ct,
+        "ct": s_handshake,
+    })).unwrap();
+
+    Some(body)
 }
 
 #[flutter_rust_bridge::frb(sync)] // Synchronous mode for simplicity of the demo

@@ -57,14 +57,17 @@ class AuthProvider extends ChangeNotifier {
           SharedPreferences prefs = await SharedPreferences.getInstance();
           var keys = prefs.getString('keys');
           var requestForm = await signAndPublish(keyJson: keys ?? "");
-          final _ = await AppHttpClient.post(
+          
+          final response = await AppHttpClient.post(
             'keys',
-            body: requestForm,
+            body: jsonDecode(requestForm),
             headers: {
               'Content-Type': 'application/json',
               "authorization": token,
             },
           );
+
+          print(response.statusCode);
         }
 
         SharedPreferences prefs = await SharedPreferences.getInstance();

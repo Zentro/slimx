@@ -4,6 +4,7 @@ import 'package:client/src/screens/auth/login_screen.dart';
 import 'package:client/src/screens/chat/ai_assistant_screen.dart';
 import 'package:client/src/screens/chat/floating_action_button.dart';
 import 'package:client/src/screens/settings/appearance_screen.dart';
+import 'package:client/src/screens/settings/chat_requests_screen.dart';
 import 'package:client/src/screens/settings/handshake_request_screen.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -65,13 +66,6 @@ class _InboxScreen extends State<InboxScreen> {
       });
     }
   }
-
-  final List<String> emails = [
-    'Ai Buddy',
-    'John Doe',
-    'Jane Smith',
-    'Alice Johnson',
-  ];
 
   void _showHelpDialog(BuildContext context) {
     showDialog(
@@ -210,8 +204,10 @@ class _InboxScreen extends State<InboxScreen> {
               title: const Text('Chat Requests'),
               leading: const Icon(Icons.mark_chat_unread_outlined),
               onTap: () {
-                // Update the state of the app.
-                // ...
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ChatRequestScreen()),
+                );
               },
             ),
             ListTile(

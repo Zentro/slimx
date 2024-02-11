@@ -21,5 +21,14 @@ String generateKeys({dynamic hint}) =>
 Future<String> signAndPublish({required String keyJson, dynamic hint}) =>
     RustLib.instance.api.signAndPublish(keyJson: keyJson, hint: hint);
 
+/// connection with someone
+Future<String?> initHandshake(
+        {required String keyBundle,
+        required String sIkPub,
+        required String sIkSec,
+        dynamic hint}) =>
+    RustLib.instance.api.initHandshake(
+        keyBundle: keyBundle, sIkPub: sIkPub, sIkSec: sIkSec, hint: hint);
+
 String greet({required String name, dynamic hint}) =>
     RustLib.instance.api.greet(name: name, hint: hint);
