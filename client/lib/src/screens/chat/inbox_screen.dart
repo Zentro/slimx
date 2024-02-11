@@ -2,6 +2,7 @@ import 'package:client/src/app_http_client.dart';
 import 'package:client/src/providers/auth_provider.dart';
 import 'package:client/src/screens/auth/login_screen.dart';
 import 'package:client/src/screens/chat/ai_assistant_screen.dart';
+import 'package:client/src/screens/chat/floating_action_button.dart';
 import 'package:client/src/screens/settings/appearance_screen.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -141,7 +142,6 @@ class _InboxScreen extends State<InboxScreen> {
               onTap: () {
                 Navigator.push(
                   context,
-                  //TODO: this is where you need to add the AiAssistantScreen to this list btw
                   MaterialPageRoute(
                       builder: (context) => ChatScreen(
                             chatID: data[index]['chat_id'],
@@ -234,6 +234,32 @@ class _InboxScreen extends State<InboxScreen> {
             ),
           ],
         ),
+      ),
+      floatingActionButton: ExpandableFab(
+        distance: 112,
+        children: [
+          ActionButton(
+            onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AiAssistantScreen()),
+                ),
+            icon: const Icon(Icons.format_size),
+          ),
+          ActionButton(
+            onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AiAssistantScreen()),
+                ),
+            icon: const Icon(Icons.insert_photo),
+          ),
+          ActionButton(
+            onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AiAssistantScreen()),
+                ),
+            icon: const Icon(Icons.videocam),
+          ),
+        ],
       ),
     );
   }
