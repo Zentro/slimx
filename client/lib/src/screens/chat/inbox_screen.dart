@@ -47,9 +47,11 @@ class _InboxScreen extends State<InboxScreen> {
 
       if (response.statusCode == 200) {
         // If the server returns a 200 OK response, you can process the data here
-        final data = jsonDecode(response.body);
+        List<dynamic> initData = jsonDecode(response.body);
         // For example, you can print the data to the console
-        print(data);
+        // print(initData);
+        data = initData.map((e) => e as Map<String, dynamic>).toList();
+        // print(data);
       } else {
         print("NOT WORKING");
         // If the server returns an error response, throw an exception
@@ -126,10 +128,9 @@ class _InboxScreen extends State<InboxScreen> {
             onTap: () {
               Navigator.push(
                 context,
+                //TODO: this is where you need to add the AiAssistantScreen to this list btw
                 MaterialPageRoute(
-                    builder: (context) => isChatAiAssistant(emails[index])
-                        ? const AiAssistantScreen()
-                        : ChatScreen(
+                    builder: (context) => ChatScreen(
                             chatID: data[index]['chat_id'],
                             authToken: authToken,
                           )),
