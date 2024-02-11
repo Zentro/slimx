@@ -28,11 +28,11 @@ class _InboxScreen extends State<InboxScreen> {
   Future<void> _connectToWebSocket() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      authToken = prefs.getString('token') ?? '';
+      authToken = prefs.getString('auth') ?? '';
     });
 
     Map<String, dynamic> headers = {
-      'Authorization': 'Bearer $authToken',
+      'Authorization': authToken,
     };
     channel = IOWebSocketChannel.connect('ws://172.17.13.36:8080/inbox', headers: headers);
   }

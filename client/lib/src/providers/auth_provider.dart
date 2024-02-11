@@ -50,7 +50,7 @@ class AuthProvider extends ChangeNotifier {
         },
       );
       if (response.statusCode == 200) {
-        final String token = response.headers['Authorization'] ?? "null";
+        final String token = response.headers['authorization'] ?? "null";
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         prefs.setString('auth', token);
@@ -58,6 +58,8 @@ class AuthProvider extends ChangeNotifier {
         final Map<String, dynamic> responseData = json.decode(response.body);
 
         final User user = User.fromJson(responseData);
+
+        notifyListeners();
 
         return user;
       } else {

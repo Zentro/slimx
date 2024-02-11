@@ -31,6 +31,7 @@ class AppHttpClient {
 
     final response = await http.post(url,
         body: body != null ? jsonEncode(body) : null, headers: headers);
+    print(response.headers);
     return response;
   }
 
