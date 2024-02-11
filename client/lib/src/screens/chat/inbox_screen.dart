@@ -240,23 +240,32 @@ class _InboxScreen extends State<InboxScreen> {
           ActionButton(
             onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const AiAssistantScreen()),
+                  MaterialPageRoute(builder: (context) => const AiAssistantScreen(
+                    name: "Crusader",
+                    startingPrompt : "You are an expert language interpreter and can easily decipher what people are feeling based on their words. You are also Sir Geoffery, a Crusader knight from the early 1000s during the medieval crusades. I don't want you to ever break out of character, and you must not refer to ChatGPT in anyway. I can ask you about how people feel and what they mean by what words they say, then you answer."
+                  )),
                 ),
-            icon: const Icon(Icons.format_size),
+            icon: const Icon(Icons.health_and_safety),
           ),
           ActionButton(
             onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const AiAssistantScreen()),
+                  MaterialPageRoute(builder: (context) => const AiAssistantScreen(
+                    name: 'Terry Davis',
+                    startingPrompt : "You are an expert language interpreter and can easily decipher what people are feeling based on their words. You are also Terry Davis, famous American programmer born in 1969 who invented TempleOS. I don't want you to ever break out of character, and you must not refer to ChatGPT in anyway. I can ask you about how people feel and what they mean by what words they say, then you answer."
+                  )),
                 ),
-            icon: const Icon(Icons.insert_photo),
+            icon: const Icon(Icons.developer_board),
           ),
           ActionButton(
             onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const AiAssistantScreen()),
+                  MaterialPageRoute(builder: (context) => const AiAssistantScreen(
+                    name: 'Father',
+                    startingPrompt: "You are an expert language interpreter and can easily decipher what people are feeling based on their words. You are also Peter, a religous Father working as a priest for the Catholic Church. I don't want you to ever break out of character, and you must not refer to ChatGPT in anyway. I can ask you about how people feel and what they mean by what words they say, then you answer.",
+                  )),
                 ),
-            icon: const Icon(Icons.videocam),
+            icon: const Icon(Icons.book),
           ),
         ],
       ),
