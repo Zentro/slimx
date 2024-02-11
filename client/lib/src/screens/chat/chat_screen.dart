@@ -176,7 +176,7 @@ class ChatMessage extends StatelessWidget {
                   margin: const EdgeInsets.only(top: 2.0),
                   padding: const EdgeInsets.all(12.0),
                   decoration: BoxDecoration(
-                    color: isMe ? oddItemColor : evenItemColor,
+                    color: isMe ? evenItemColor : oddItemColor,
                     borderRadius: BorderRadius.circular(15.0),
                   ),
                   child: Text(
