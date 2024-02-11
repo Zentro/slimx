@@ -55,10 +55,12 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
   Future<void> _acceptRequest(String email, int handshake_id) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var token = prefs.getString('auth') ?? "";
+    print(handshake_id);
     final response = await AppHttpClient.post(
-      'complete/$handshake_id',
+      'complete',
       headers: {
-        "authorization": token
+        "authorization": token,
+        "handshake_id": "$handshake_id",
       }
     );
     if (response.statusCode != 200) {

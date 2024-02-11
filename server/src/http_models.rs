@@ -37,7 +37,6 @@ pub struct KeysForm {
     pub pqspk: String,
     pub pqspk_sig: String,
     pub opk_arr: Vec<String>,
-    pub opk_sig_arr: Vec<String>,
     pub pqopk_arr: Vec<String>,
     pub pqopk_sig_arr: Vec<String>
 }
@@ -50,8 +49,7 @@ pub struct PrekeyBundle {
     pub spk_sig: String,
     pub pqpk: String,
     pub pqpk_sig: String,
-    pub opk: Option<String>,
-    pub opk_sig: Option<String>
+    pub opk: Option<String>
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
