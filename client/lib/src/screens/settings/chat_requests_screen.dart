@@ -52,7 +52,23 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
     }
   }
 
-  Future<void> _acceptRequest() async {}
+  Future<void> _acceptRequest(String email, int handshake_id) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    var token = prefs.getString('auth') ?? "";
+    final response = await AppHttpClient.post(
+      'complete/$handshake_id',
+      headers: {
+        "authorization": token
+      }
+    );
+    if (response.statusCode != 200) {
+      print(response.statusCode);
+      print("^^^^^^^^^ FAILED TO APPROVE REQUEST");
+    }
+    setState(() {
+      _pendingRequests.removeWhere((request) => request['email'] == email);
+    });
+  }
 
   Future<void> _denyRequest() async {}
 
@@ -79,7 +95,7 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
                           icon: const Icon(Icons.check),
                           onPressed: () {
                             // Handle accepting the chat request
-                            _acceptRequest();
+                            _acceptRequest(_pendingRequests[index]["email"], _pendingRequests[index]["handshake_id"]);
                           },
                         ),
                         IconButton(
