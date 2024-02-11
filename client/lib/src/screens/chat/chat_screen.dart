@@ -1,31 +1,24 @@
+import 'dart:convert';
 import 'dart:io';
 
-import 'package:client/src/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-// todo: implement in rust to cache messages in memory
-class Message {
-  final String text;
-  final String sender;
-  final bool isMe;
-
-  Message({required this.text, required this.sender, required this.isMe});
-}
-
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({Key? key}) : super(key: key);
+  final String chatID;
+  final String authToken;
+
+  const ChatScreen({Key? key, required this.chatID, required this.authToken}) : super(key: key);
 
   @override
-  State<ChatScreen> createState() => _ChatScreen();
+  State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreen extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> {
+  late WebSocketChannel channel;
   final List<Message> _messages = [];
   final TextEditingController _textController = TextEditingController();
-  late final String chatRoom;
-  late WebSocketChannel channel;
 
   @override
   void initState() {
@@ -34,39 +27,61 @@ class _ChatScreen extends State<ChatScreen> {
   }
 
   void _connectToWebSocket() {
-    channel = IOWebSocketChannel.connect('ws://localhost:9000/ws');
-    channel.stream.listen(
-      (message) {
-        setState(() {
-          _messages.add(Message(
-              text: message['text'],
-              sender: message['sender'],
-              isMe: message['isMe'] ?? false));
-        });
-      },
-      onError: (error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('A fatal error: $error'),
-          ),
-        );
-      },
-      onDone: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Connection closed.'),
-          ),
-        );
-      },
+    Map<String, dynamic> headers = {
+      'Authorization': 'Bearer ${widget.authToken}',
+    };
+    channel = IOWebSocketChannel.connect(
+      'ws://localhost:9000/chat/${widget.chatID}',
+      headers: headers,
     );
   }
 
-  void _handleSubmitted(String text) {
-    _textController.clear();
-    Message message = Message(text: text, sender: 'User', isMe: true);
-    setState(() {
-      _messages.insert(0, message);
-    });
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Chat'),
+      ),
+      body: Column(
+        children: <Widget>[
+          Flexible(
+            child: StreamBuilder(
+              stream: channel.stream,
+              builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
+                if (snapshot.hasError) {
+                  return Text('Error: ${snapshot.error}');
+                }
+
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                final message = jsonDecode(snapshot.data.toString());
+
+                _messages.add(Message(
+                  text: message['text'],
+                  sender: message['sender'],
+                  isMe: message['isMe'] ?? false,
+                ));
+
+                return ListView.builder(
+                  reverse: true,
+                  padding: const EdgeInsets.all(8.0),
+                  itemCount: _messages.length,
+                  itemBuilder: (_, int index) {
+                    return ChatMessage(message: _messages[index]);
+                  },
+                );
+              },
+            ),
+          ),
+          const Divider(height: 1.0),
+          _buildTextComposer(),
+        ],
+      ),
+    );
   }
 
   Widget _buildTextComposer() {
@@ -92,35 +107,34 @@ class _ChatScreen extends State<ChatScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Chat'),
-      ),
-      body: Column(
-        children: <Widget>[
-          Flexible(
-            child: ListView.builder(
-              reverse: true,
-              padding: const EdgeInsets.all(8.0),
-              itemBuilder: (_, int index) =>
-                  ChatMessage(message: _messages[index]),
-              itemCount: _messages.length,
-            ),
-          ),
-          const Divider(height: 1.0),
-          _buildTextComposer(),
-        ],
-      ),
-    );
+  void _handleSubmitted(String text) {
+    _textController.clear();
+    Message message = Message(text: text, sender: 'User', isMe: true);
+    _messages.insert(0, message);
+    channel.sink.add(jsonEncode(message.toJson()));
+  }
+}
+
+class Message {
+  final String text;
+  final String sender;
+  final bool isMe;
+
+  Message({required this.text, required this.sender, required this.isMe});
+
+  Map<String, dynamic> toJson() {
+    return {
+      'text': text,
+      'sender': sender,
+      'isMe': isMe,
+    };
   }
 }
 
 class ChatMessage extends StatelessWidget {
   final Message message;
 
-  const ChatMessage({super.key, required this.message});
+  const ChatMessage({Key? key, required this.message}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -135,8 +149,7 @@ class ChatMessage extends StatelessWidget {
         children: <Widget>[
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: <Widget>[
                 Text(message.sender, style: const TextStyle(fontSize: 10)),
                 Container(

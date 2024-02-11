@@ -1,8 +1,11 @@
 import 'package:client/src/screens/chat/ai_assistant_screen.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 // import 'package:fmr/src/screens/appearance_settings_screen.dart';
 // import 'package:fmr/src/screens/privacy_settings_screen.dart';
 import 'package:client/src/screens/chat/chat_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class InboxScreen extends StatefulWidget {
@@ -14,21 +17,31 @@ class InboxScreen extends StatefulWidget {
 
 class _InboxScreen extends State<InboxScreen> {
   late WebSocketChannel channel;
+  late String authToken;
+
+  @override
+  void initState() {
+    super.initState();
+    _connectToWebSocket();
+  }
+
+  Future<void> _connectToWebSocket() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      authToken = prefs.getString('token') ?? '';
+    });
+
+    Map<String, dynamic> headers = {
+      'Authorization': 'Bearer $authToken',
+    };
+    channel = IOWebSocketChannel.connect('ws://localhost:9000/inbox', headers: headers);
+  }
 
   final List<String> emails = [
     'Ai Buddy',
     'John Doe',
     'Jane Smith',
     'Alice Johnson',
-    'Brotha #1',
-    'Brotha #2',
-    'Brotha #3',
-    'crack dealer',
-    'sidehoe 1',
-    'sidehoe 2',
-    'sidehoe 3',
-    'secret sidehide',
-    // Add more emails as needed
   ];
 
   void _showHelpDialog(BuildContext context) {
@@ -37,7 +50,7 @@ class _InboxScreen extends State<InboxScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Help'),
-          content: const Text('This is a small dialog.'),
+          content: const Text('Powered by SlimX.'),
           actions: <Widget>[
             TextButton(
               onPressed: () {
@@ -61,11 +74,10 @@ class _InboxScreen extends State<InboxScreen> {
     return name == 'Ai Buddy';
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar (
+      appBar: AppBar(
         title: const Text('Chats'),
         actions: [
           IconButton(
@@ -75,26 +87,50 @@ class _InboxScreen extends State<InboxScreen> {
           ),
         ],
       ),
-      body: ListView.builder(
-        itemCount: emails.length,
-        itemBuilder: (BuildContext context, int index) {
-          return ListTile(
-            leading: CircleAvatar(
-              child: Text(emails[index][0]),
-            ),
-            title: Text(emails[index]),
-            subtitle: const Text('Subject of the email'),
-            trailing: const Text('2h ago'), // You can use a more complex widget here
-            onTap: () {
-              // Handle tap on the email ROUTE TO IT
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => isChatAiAssistant(emails[index]) ? const AiAssistantScreen() : const ChatScreen()),
+      body: StreamBuilder(
+        stream: channel.stream,
+        builder: (context, AsyncSnapshot<dynamic> snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          } else if (snapshot.hasError) {
+            return Center(
+              child: Text('Error: ${snapshot.error}'),
+            );
+          } else if (!snapshot.hasData) {
+            return const Center(
+              child: Text('No data available'),
+            );
+          }
+
+          // Parse the data received from the server
+          final data = jsonDecode(snapshot.data.toString());
+
+          // Update your UI based on the received data
+          return ListView.builder(
+            itemCount: data.length,
+            itemBuilder: (BuildContext context, int index) {
+              // Build list items based on the received data
+              // Example:
+              return ListTile(
+                title: Text(data[index]['chatName']),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => isChatAiAssistant(emails[index]) ? const AiAssistantScreen() : ChatScreen(
+                              chatID: data[index]['chatID'],
+                              authToken: authToken,
+                            )),
+                  );
+                },
               );
             },
           );
         },
       ),
+
       // move this to a widget
       drawer: Drawer(
         // Add a ListView to the drawer. This ensures the user can scroll
