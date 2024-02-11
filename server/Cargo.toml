@@ -6,3 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+argon2 = "0.5.2"
+chrono = "0.4.31"
+diesel = { version = "2.1.4", features = ["mysql", "chrono"] }
+dotenvy = "0.15.7"
+hex = "0.4.3"
+serde = "1.0.195"
+serde_derive = "1.0.195"
+tokio = { version = "1.35.1", features = ["full"] }
+warp = "0.3.6"
+auth = { path = "../auth" }
+rand = "0.8.5"
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
