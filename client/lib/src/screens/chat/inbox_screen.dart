@@ -1,3 +1,4 @@
+import 'package:client/src/app_http_client.dart';
 import 'package:client/src/screens/chat/ai_assistant_screen.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -16,25 +17,52 @@ class InboxScreen extends StatefulWidget {
 }
 
 class _InboxScreen extends State<InboxScreen> {
-  late WebSocketChannel channel;
   late String authToken;
+  bool isLoading = true; // always true
+  final String chatsUri = 'inbox';
+  List<Map<String, dynamic>> data = [];
 
   @override
   void initState() {
     super.initState();
-    _connectToWebSocket();
+    fetchData();
   }
 
-  Future<void> _connectToWebSocket() async {
+  Future<void> fetchData() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      authToken = prefs.getString('auth') ?? '';
-    });
+    authToken = prefs.getString('auth') ?? '';
+    try {
+      setState(() {
+        isLoading = true; // Set loading state to true
+      });
 
-    Map<String, dynamic> headers = {
-      'Authorization': authToken,
-    };
-    channel = IOWebSocketChannel.connect('ws://172.17.13.36:8080/inbox', headers: headers);
+      final response = await AppHttpClient.get(
+        chatsUri,
+        headers: {
+          "authorization": authToken,
+        } // add headers
+      );
+
+      print(response.body);
+
+      if (response.statusCode == 200) {
+        // If the server returns a 200 OK response, you can process the data here
+        final data = jsonDecode(response.body);
+        // For example, you can print the data to the console
+        print(data);
+      } else {
+        print("NOT WORKING");
+        // If the server returns an error response, throw an exception
+        throw Exception('Failed to load data');
+      }
+    } catch (e) {
+      // Catch any errors that occur during the process
+      print('Error: $e');
+    } finally {
+      setState(() {
+        isLoading = false; // Set loading state to false when request completes
+      });
+    }
   }
 
   final List<String> emails = [
@@ -87,50 +115,29 @@ class _InboxScreen extends State<InboxScreen> {
           ),
         ],
       ),
-      body: StreamBuilder(
-        stream: channel.stream,
-        builder: (context, AsyncSnapshot<dynamic> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          } else if (snapshot.hasError) {
-            return Center(
-              child: Text('Error: ${snapshot.error}'),
-            );
-          } else if (!snapshot.hasData) {
-            return const Center(
-              child: Text('No data available'),
-            );
-          }
 
-          // Parse the data received from the server
-          final data = jsonDecode(snapshot.data.toString());
-
-          // Update your UI based on the received data
-          return ListView.builder(
-            itemCount: data.length,
-            itemBuilder: (BuildContext context, int index) {
-              // Build list items based on the received data
-              // Example:
-              return ListTile(
-                title: Text(data[index]['chatName']),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => isChatAiAssistant(emails[index]) ? const AiAssistantScreen() : ChatScreen(
-                              chatID: data[index]['chatID'],
-                              authToken: authToken,
-                            )),
-                  );
-                },
+      body: ListView.builder(
+        itemCount: data.length,
+        itemBuilder: (BuildContext context, int index) {
+          // Build list items based on the received data
+          // Example:
+          return ListTile(
+            title: Text(data[index]['username']),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => isChatAiAssistant(emails[index])
+                        ? const AiAssistantScreen()
+                        : ChatScreen(
+                            chatID: data[index]['chat_id'],
+                            authToken: authToken,
+                          )),
               );
             },
           );
         },
       ),
-
       // move this to a widget
       drawer: Drawer(
         // Add a ListView to the drawer. This ensures the user can scroll

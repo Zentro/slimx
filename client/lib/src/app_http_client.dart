@@ -9,15 +9,15 @@ class AppHttpClient {
     return prefs.getString('apiUrl');
   }
 
-  static Future<http.Response> get(String uri) async {
+  static Future<http.Response> get(String uri, {Map<String, String>? headers}) async {
     final baseUrl = await _getApiUrl();
     final url = Uri.parse('$baseUrl/$uri');
 
     // Log the HTTP request
     AppLogger.instance.i('Sending HTTP GET request to: $url');
 
-    final response = await http.get(url);
-    return _handleHttpResponse(response);
+    final response = await http.get(url, headers: headers);
+    return response;
   }
 
   static Future<http.Response> post(String uri,
@@ -31,7 +31,6 @@ class AppHttpClient {
 
     final response = await http.post(url,
         body: body != null ? jsonEncode(body) : null, headers: headers);
-    print(response.headers);
     return response;
   }
 
