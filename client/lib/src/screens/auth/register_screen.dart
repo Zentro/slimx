@@ -1,4 +1,5 @@
 import 'package:client/src/screens/auth/login_screen.dart';
+import 'package:client/src/screens/chat/inbox_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:responsive_builder/responsive_builder.dart';
 import 'package:client/src/providers/auth_provider.dart';
@@ -23,6 +24,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _register(AuthProvider authProvider) async {
     try {
+      print(email);
       await authProvider.register(email, password, username, phone);
       // Navigate to the next screen upon successful login
       // For example:
@@ -77,12 +79,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
           children: [
             RegisterForm(onFormSubmitted:
                 (formEmail, formPassword, formPhone, formUsername) {
+              print("Email $formEmail");
               setState(() {
                 email = formEmail;
                 password = formPassword;
                 phone = formPhone;
                 username = formUsername;
               });
+              print("Email $email");
               // Safely access AuthProvider using Provider.of
               final authProvider =
                   Provider.of<AuthProvider>(context, listen: false);
@@ -90,6 +94,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
             })
           ]),
     );
+  }
+
+  void _navigateToInbox() {
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+      builder: (context) => const InboxScreen(),
+    ));
   }
 }
 
@@ -121,6 +131,7 @@ class _RegisterFormState extends State<RegisterForm> {
               border: OutlineInputBorder(),
               labelText: "Username",
             ),
+            controller: usernameController,
             validator: (value) {
               // Do not allow an empty field or permit anything less than 3 characters
               if (value == null || value.isEmpty || value.length < 3) {
@@ -138,6 +149,7 @@ class _RegisterFormState extends State<RegisterForm> {
               border: OutlineInputBorder(),
               labelText: "Phone",
             ),
+            controller: phoneController,
             validator: (value) {
               // Do not allow an empty field or permit anything less than 3 characters
               if (value == null || value.isEmpty || value.length < 3) {
@@ -158,6 +170,7 @@ class _RegisterFormState extends State<RegisterForm> {
               border: OutlineInputBorder(),
               labelText: "Email",
             ),
+            controller: emailController,
             validator: (value) {
               // Do not allow an empty field or permit anything less than 3 characters
               if (value == null || value.isEmpty || value.length < 3) {
@@ -179,6 +192,7 @@ class _RegisterFormState extends State<RegisterForm> {
               border: OutlineInputBorder(),
               labelText: "Password",
             ),
+            controller: passwordController,
             obscureText: true, // :3
             validator: (value) {
               if (value == null || value.isEmpty || value.length < 3) {
@@ -236,4 +250,5 @@ class _RegisterFormState extends State<RegisterForm> {
     );
     return phoneRegex.hasMatch(phoneNumber);
   }
+
 }

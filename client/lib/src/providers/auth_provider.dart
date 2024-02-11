@@ -1,3 +1,4 @@
+import 'package:client/src/user.dart';
 import 'package:flutter/material.dart';
 import 'package:client/src/app_http_client.dart';
 // import 'package:provider/provider.dart';
@@ -32,7 +33,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // Provide an asynchronous function to handle user login
-  Future<void> login(String email, String password) async {
+  Future<User> login(String email, String password) async {
     // The 'async' keyword allows for asynchronous operations within the
     // function body
     try {
@@ -48,11 +49,23 @@ class AuthProvider extends ChangeNotifier {
           'Content-Type': 'application/json',
         },
       );
+      if (response.statusCode == 200) {
+        final String token = response.headers['Authorization'] ?? "null";
 
-      // store login token
-      notifyListeners();
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        prefs.setString('auth', token);
+
+        final Map<String, dynamic> responseData = json.decode(response.body);
+
+        final User user = User.fromJson(responseData);
+
+        return user;
+      } else {
+        throw Exception(
+            'Failed to log in. Please check your credentials and try again.');
+      }
     } catch (e) {
-      AppLogger.instance.e(e);
+      AppLogger.instance.t(e);
       // You can throw an exception here and catch it in the UI layer to
       // display a generic error message.
       throw Exception(
@@ -63,25 +76,25 @@ class AuthProvider extends ChangeNotifier {
   Future<void> register(
       String email, String password, String username, String phone) async {
     try {
-      final Map<String, dynamic> registerData = {
-        'email': email,
-        'password': password,
+      final Map<String, String> registerData = {
         'username': username,
+        'password': password,
+        'email': email,
         'phone': phone,
       };
 
       final response = await AppHttpClient.post(
-       registerUriPath,
+        registerUriPath,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: jsonEncode(registerData),
+        body: registerData,
       );
 
-      final String? token = response.headers['auth'];
+      final String token = response.headers['Authorization'] ?? "null";
 
       SharedPreferences prefs = await SharedPreferences.getInstance();
-      prefs.setString('auth', token!);
+      prefs.setString('auth', token);
 
       // store user and token
       notifyListeners();

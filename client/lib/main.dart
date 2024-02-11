@@ -40,7 +40,7 @@ Hostname: ${platform.localHostname}
 
   // todo: move this later
   SharedPreferences prefs = await SharedPreferences.getInstance();
-  prefs.setString('apiUrl', 'http://localhost:8080'); // Hard-coded default
+  prefs.setString('apiUrl', 'http://172.17.13.36:8080'); // Hard-coded default
 
   await RustLib.init();
   runApp(
@@ -71,8 +71,8 @@ class App extends StatelessWidget {
       home: Consumer2<AuthProvider, AppSupportDirectoryProvider>(
         builder: (context, authProvider, appSupportDirectoryProvider, _) {
           return authProvider.getAuthState
-              ? const LoginScreen()
-              : const InboxScreen();
+              ? const InboxScreen()
+              : const LoginScreen();
         },
       ),
     );

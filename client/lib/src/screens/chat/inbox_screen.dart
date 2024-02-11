@@ -34,7 +34,7 @@ class _InboxScreen extends State<InboxScreen> {
     Map<String, dynamic> headers = {
       'Authorization': 'Bearer $authToken',
     };
-    channel = IOWebSocketChannel.connect('ws://localhost:9000/inbox', headers: headers);
+    channel = IOWebSocketChannel.connect('ws://172.17.13.36:8080/inbox', headers: headers);
   }
 
   final List<String> emails = [

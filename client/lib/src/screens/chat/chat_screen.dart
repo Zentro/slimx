@@ -28,10 +28,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _connectToWebSocket() {
     Map<String, dynamic> headers = {
-      'Authorization': 'Bearer ${widget.authToken}',
+      'Authorization': widget.authToken,
     };
     channel = IOWebSocketChannel.connect(
-      'ws://localhost:9000/chat/${widget.chatID}',
+      'ws://172.17.13.36:8080/chat/${widget.chatID}',
       headers: headers,
     );
   }

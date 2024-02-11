@@ -31,7 +31,7 @@ class AppHttpClient {
 
     final response = await http.post(url,
         body: body != null ? jsonEncode(body) : null, headers: headers);
-    return _handleHttpResponse(response);
+    return response;
   }
 
   static dynamic _handleHttpResponse(http.Response response) {
@@ -39,7 +39,7 @@ class AppHttpClient {
     AppLogger.instance.i('HTTP response: HTTP/${response.statusCode}');
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      return jsonDecode(response.body);
+      return response;
     } else {
       throw Exception(
           'An unexpected error occured. Status code: ${response.statusCode}');
