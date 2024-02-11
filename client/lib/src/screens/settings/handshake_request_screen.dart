@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:client/src/app_http_client.dart';
+import 'package:client/src/rust/api/simple.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -37,15 +38,27 @@ class _HandshakeRequestScreenState extends State<HandshakeRequestScreen> {
     var keys = jsonDecode(prefs.getString('keys') ?? "");
     // Save pending requests to SharedPreferences
     final response = await AppHttpClient.post(
-      "/handshakes/$email",
+      "handshakes",
       headers: {
-        'Content-Type': 'application/json',
         "authorization": token,
+        "email": email,
       },
     );
 
-    var resp = response.body;
-    print(resp);
+    print(response.statusCode);
+
+    var prekey_bundle = response.body;
+
+    var filled_handshake = await initHandshake(keyBundle: prekey_bundle, sIkPub: keys["ik_pub"], sIkSec: keys["ik_sec"]);
+    
+    final last = await AppHttpClient.put("handshakes", 
+    headers: {
+      "Content-Type": "application/json",
+      "authorization": token,
+    }, 
+    body: jsonDecode(filled_handshake!));
+
+    print(last.statusCode);
   }
 
   void _addRequest(String email) {
