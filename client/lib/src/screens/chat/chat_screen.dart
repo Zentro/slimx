@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:client/src/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -15,23 +18,47 @@ class ChatScreen extends StatefulWidget {
   const ChatScreen({Key? key}) : super(key: key);
 
   @override
-  State<ChatScreen > createState() => _ChatScreen ();
+  State<ChatScreen> createState() => _ChatScreen();
 }
 
 class _ChatScreen extends State<ChatScreen> {
   final List<Message> _messages = [];
   final TextEditingController _textController = TextEditingController();
   late final String chatRoom;
-  final WebSocketChannel channel = IOWebSocketChannel.connect('ws://localhost:9000/ws');
+  late WebSocketChannel channel;
 
   @override
   void initState() {
     super.initState();
-    channel.stream.listen((message) {
-      setState(() {
-        _messages.add(Message(text: message['text'], sender: message['sender'], isMe: message['isMe]'] ?? false));
-      });
-    });
+    _connectToWebSocket();
+  }
+
+  void _connectToWebSocket() {
+    channel = IOWebSocketChannel.connect('ws://localhost:9000/ws');
+    channel.stream.listen(
+      (message) {
+        setState(() {
+          _messages.add(Message(
+              text: message['text'],
+              sender: message['sender'],
+              isMe: message['isMe'] ?? false));
+        });
+      },
+      onError: (error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('A fatal error: $error'),
+          ),
+        );
+      },
+      onDone: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Connection closed.'),
+          ),
+        );
+      },
+    );
   }
 
   void _handleSubmitted(String text) {
@@ -77,7 +104,8 @@ class _ChatScreen extends State<ChatScreen> {
             child: ListView.builder(
               reverse: true,
               padding: const EdgeInsets.all(8.0),
-              itemBuilder: (_, int index) => ChatMessage(message: _messages[index]),
+              itemBuilder: (_, int index) =>
+                  ChatMessage(message: _messages[index]),
               itemCount: _messages.length,
             ),
           ),
@@ -107,7 +135,8 @@ class ChatMessage extends StatelessWidget {
         children: <Widget>[
           Expanded(
             child: Column(
-              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: <Widget>[
                 Text(message.sender, style: const TextStyle(fontSize: 10)),
                 Container(

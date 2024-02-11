@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 // import 'package:fmr/src/screens/appearance_settings_screen.dart';
 // import 'package:fmr/src/screens/privacy_settings_screen.dart';
 import 'package:client/src/screens/chat/chat_screen.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 class InboxScreen extends StatefulWidget {
   const InboxScreen({Key? key}) : super(key: key);
@@ -11,6 +12,7 @@ class InboxScreen extends StatefulWidget {
 }
 
 class _InboxScreen extends State<InboxScreen> {
+  late WebSocketChannel channel;
 
   final List<String> emails = [
     'John Doe',
