@@ -1,0 +1,8 @@
+-- Your SQL goes here
+CREATE TABLE chats (
+    id SERIAL PRIMARY KEY,
+    a BIGINT UNSIGNED NOT NULL,
+    b BIGINT UNSIGNED NOT NULL,
+    FOREIGN KEY (a) REFERENCES users(id),
+    FOREIGN KEY (b) REFERENCES users(id)
+)

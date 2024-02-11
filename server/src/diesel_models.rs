@@ -1,9 +1,18 @@
 use diesel::prelude::*;
+use serde_derive::Serialize;
 
-use crate::schema::{users, conversations, perm_keys, onetime_keys, onetime_pqkem, handshakes};
+use crate::schema::{
+    users, 
+    perm_keys, 
+    onetime_keys, 
+    onetime_pqkem, 
+    handshakes,
+    chats,
+    messages
+};
 use chrono::NaiveDateTime;
 
-#[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
+#[derive(Queryable, Selectable, Identifiable, Debug, PartialEq, Serialize)]
 #[diesel(table_name = users)]
 #[diesel(check_for_backend(diesel::mysql::Mysql))]
 pub struct User {
@@ -15,15 +24,15 @@ pub struct User {
 }
 
 #[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
-#[diesel(belongs_to(User, foreign_key = sender_id))]
-#[diesel(table_name = conversations)]
+#[diesel(belongs_to(User, foreign_key = user_id))]
+#[diesel(table_name = messages)]
 #[diesel(check_for_backend(diesel::mysql::Mysql))]
-pub struct Conversation {
+pub struct Message {
     pub id: u64,
     pub created: NaiveDateTime,
     pub updated: Option<NaiveDateTime>,
-    pub sender_id: u64,
-    pub receiver_id: u64,
+    pub user_id: u64,
+    pub chat_id: u64,
     pub msg: Vec<u8>
 }
 
@@ -77,6 +86,15 @@ pub struct Handshake {
     pub ek: Option<String>,
     pub pqkem_ct: Option<String>,
     pub ct: Option<String>
+}
+
+#[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
+#[diesel(table_name = chats)]
+#[diesel(check_for_backend(diesel::mysql::Mysql))]
+pub struct Chat {
+    pub id: u64,
+    pub a: u64,
+    pub b: u64
 }
 
 #[derive(Insertable)]
