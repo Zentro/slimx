@@ -1,14 +1,14 @@
 use pqc_kyber::*;
 use rand::{rngs::StdRng, SeedableRng};
+use serde_derive::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use x25519_dalek::{StaticSecret, PublicKey, x25519};
 
-use aes_gcm::{Aes256Gcm, Key, KeyInit, AeadCore, aead::{Payload, Aead}};
+use aes_gcm::{aead::{Aead, Nonce, Payload}, AeadCore, Aes256Gcm, Key, KeyInit};
 use hkdf::Hkdf;
 use sha2::Sha512;
 
 use super::xeddsa;
-
 const ONETIME_CURVE: usize = 32;
 const ONETIME_PQKEM: usize = 32;
 
@@ -202,7 +202,7 @@ pub fn sign_and_publish(key_json: String) -> String{
 
 // Flutter sends back a key bundle when requesting a
 /// connection with someone
-pub fn init_handshake(key_bundle: String, s_ik_pub: String, s_ik_sec: String) -> Option<String> {
+pub fn init_handshake(key_bundle: String, s_ik_pub: String, s_ik_sec: String) -> Option<(String, String)> {
     // Parse the key_bundle into json and extract necessary info
     let keys_b: Value = serde_json::from_str(&key_bundle).unwrap();
     let mut ik_b: [u8; 32] = [0; 32];
@@ -261,14 +261,13 @@ pub fn init_handshake(key_bundle: String, s_ik_pub: String, s_ik_sec: String) ->
         msg: &ik_pub,
         aad: &ad,
     };
-    let handshake = cipher.encrypt(&nonce, payload).unwrap();
+    let handshake = [nonce.to_vec(), cipher.encrypt(&nonce, payload).unwrap()].concat();
 
+    println!("{:?}", nonce.to_vec());
     // Convert all needed info into hex strings
     let s_ek_pub = hex::encode(ek_pub.as_bytes());
     let s_ct = hex::encode(ct);
     let s_handshake = hex::encode(&handshake);
-    let s_pqpk_b = hex::encode(pqpk_b);
-    let s_opk_b = hex::encode(opk_b);
 
     // Construct the JSON
     let body = serde_json::to_string(&json!({
@@ -278,11 +277,120 @@ pub fn init_handshake(key_bundle: String, s_ik_pub: String, s_ik_sec: String) ->
         "ct": s_handshake,
     })).unwrap();
 
-    Some(body)
+    let sk = hex::encode(sk);
+    Some((body, sk))
 }
 
-pub fn complete_handshake() {
+#[derive(Serialize, Deserialize)]
+struct Handshake {
+    pub id: u64,
+    pub sender_id: u64,
+    pub receiver_id: u64,
+    pub ik: String,
+    pub ek: Option<String>,
+    pub pqkem_ct: Option<String>,
+    pub ct: Option<String>,
+    pub pqpk_ind: i32,
+    pub opk_ind: i32
+}
 
+pub fn complete_handshake(
+    handshake: String,
+    s_ik_pub: String,
+    s_ik_sec: String,
+    s_spk_sec: String,
+    s_pqpk_sec: String,
+    s_opk_sec: String
+) -> String {
+    let hs: Handshake = serde_json::from_str(&handshake).unwrap();
+    let mut ik_other: [u8; 32] = [0; 32];
+    let mut ek_other: [u8; 32] = [0; 32];
+    hex::decode_to_slice(hs.ik, &mut ik_other).unwrap();
+    hex::decode_to_slice(hs.ek.unwrap(), &mut ek_other).unwrap();
+
+    let mut ik_pub: [u8; 32] = [0; 32];
+    let mut ik_sec: [u8; 32] = [0; 32];
+    let mut spk_sec: [u8; 32] = [0; 32];
+    let mut pqpk_sec: [u8; KYBER_SECRETKEYBYTES] = [0; KYBER_SECRETKEYBYTES];
+    let mut opk_sec: [u8; 32] = [0; 32];
+    hex::decode_to_slice(s_ik_pub, &mut ik_pub).unwrap();
+    hex::decode_to_slice(s_ik_sec, &mut ik_sec).unwrap();
+    hex::decode_to_slice(s_spk_sec, &mut spk_sec).unwrap();
+    hex::decode_to_slice(s_pqpk_sec, &mut pqpk_sec).unwrap();
+    hex::decode_to_slice(s_opk_sec, &mut opk_sec).unwrap();
+
+    // Get key from the KEM
+    let mut pqkem_ct: [u8; KYBER_CIPHERTEXTBYTES] = [0; KYBER_CIPHERTEXTBYTES];
+    hex::decode_to_slice(hs.pqkem_ct.unwrap(), &mut pqkem_ct).unwrap();
+    let ss = decapsulate(&pqkem_ct, &pqpk_sec).unwrap();
+
+    // Compute the 4 diffie hellman vals
+    let dh1 = x25519(spk_sec.clone(), ik_other.clone());
+    let dh2 = x25519(ik_sec.clone(), ek_other.clone());
+    let dh3 = x25519(spk_sec.clone(), ek_other.clone());
+    let dh4 = x25519(opk_sec.clone(), ek_other.clone());
+
+    // Derive the secret shared key
+    let km = [dh1, dh2, dh3, dh4, ss].concat();
+    let sk = kdf(km);
+
+    // Separate the first handshake message accordingly
+    let initial_msg: Vec<u8> = hex::decode(hs.ct.unwrap()).unwrap();
+    let nonce = Nonce::<Aes256Gcm>::from_slice(&initial_msg[0..12]);
+    let ct = &initial_msg[12..];
+
+    let aes_key = Key::<Aes256Gcm>::from_slice(&sk);
+    let cipher = Aes256Gcm::new(&aes_key);
+
+    // Compute associated data and create payload for decryption
+    let ad = [ik_other, ik_pub].concat();
+    let payload = Payload {
+        msg: &ct,
+        aad: &ad,
+    };
+
+    let payload =  match cipher.decrypt(nonce, payload) {
+        Ok(r) => r,
+        Err(_) => {
+            println!("Uh oh!");
+            return "".to_string();
+        },
+    };
+
+    hex::encode(sk)
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn decrypt_message(s_sk: String, combined: Vec<u8>) -> String {
+    println!("{:?}", combined);
+    let mut sk: [u8; 32] = [0; 32];
+    hex::decode_to_slice(s_sk, &mut sk).unwrap();
+
+    let nonce = Nonce::<Aes256Gcm>::from_slice(&combined[0..12]);
+    let ct = &combined[12..];
+
+    let aes_key = Key::<Aes256Gcm>::from_slice(&sk);
+    let cipher = Aes256Gcm::new(&aes_key);
+
+    match cipher.decrypt(nonce, ct) {
+        Ok(res) => {
+            String::from_utf8(res).unwrap()
+        },
+        Err(_) => "Unable to decrypt".to_string(),
+    }
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn encrypt_message(s_sk: String, msg: String) -> Vec<u8> {
+    let mut sk: [u8; 32] = [0; 32];
+    hex::decode_to_slice(s_sk, &mut sk).unwrap();
+
+    let aes_key = Key::<Aes256Gcm>::from_slice(&sk);
+    let cipher = Aes256Gcm::new(&aes_key); 
+    let nonce = Aes256Gcm::generate_nonce(&mut StdRng::from_entropy());
+    let combined = [nonce.to_vec(), cipher.encrypt(&nonce, msg.as_bytes()).unwrap()].concat();
+
+    combined
 }
 
 #[flutter_rust_bridge::frb(sync)] // Synchronous mode for simplicity of the demo

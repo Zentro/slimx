@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:client/src/app_http_client.dart';
+import 'package:client/src/rust/api/simple.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -55,6 +57,7 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
   Future<void> _acceptRequest(String email, int handshake_id) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var token = prefs.getString('auth') ?? "";
+    var currEmail = prefs.getString('currEmail') ?? "";
     print(handshake_id);
     final response = await AppHttpClient.post(
       'complete',
@@ -67,6 +70,74 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
       print(response.statusCode);
       print("^^^^^^^^^ FAILED TO APPROVE REQUEST");
     }
+
+    var handshake = jsonDecode(response.body);
+    var pqpk_ind = handshake['pqpk_ind'];
+    var opk_ind = handshake['opk_ind'];
+
+    Map<String, dynamic> keys = Map.castFrom(jsonDecode(prefs.getString('keys')!));
+    String sIkPub = keys['ik_pub'];
+    String sIkSec = keys['ik_sec']!;
+    String sSpkSec = keys['spk_sec']!;
+    String sPqpkSec;
+    String sOpkSec;
+
+    if (pqpk_ind < 0) {
+      sPqpkSec = keys['pqspk_sec']!;
+    } else {
+      // They used a key from you, need to delete it after using
+      keys['pqopk_sec_arr'] = List.castFrom(keys['pqopk_sec_arr']!);
+      keys['pqopk_pub_arr'] = List.castFrom(keys['pqopk_pub_arr']!);
+      sPqpkSec = keys['pqopk_sec_arr'][pqpk_ind];
+
+      keys['pqopk_sec_arr'][pqpk_ind] = "";
+      keys['pqopk_pub_arr'][pqpk_ind] = "";
+    }
+
+    if (opk_ind < 0) {
+      sOpkSec = "";
+    } else {
+      keys['opk_sec_arr'] = List.castFrom(keys['opk_sec_arr']!);
+      keys['opk_pub_arr'] = List.castFrom(keys['opk_pub_arr']!);
+      sOpkSec = keys['opk_sec_arr']![opk_ind];
+
+      keys['opk_sec_arr'][opk_ind] = "";
+      keys['opk_pub_arr'][opk_ind] = "";
+    }
+
+    if (opk_ind < 0 || pqpk_ind < 0) {
+      var encodedKeys = jsonEncode(keys);
+      prefs.setString('keys', encodedKeys);
+      
+      // Dump it back into the system
+      File file = File(prefs.getString("filePath")!);
+      
+      var emailKeys = jsonDecode(file.readAsStringSync());
+      var currEmail = prefs.getString('currEmail');
+      emailKeys[currEmail!] = encodedKeys;
+      file.writeAsStringSync(jsonEncode(emailKeys));
+    }
+
+    var secretKey = completeHandshake(
+      handshake: response.body,
+      sIkPub: sIkPub,
+      sIkSec: sIkSec, 
+      sSpkSec: sSpkSec, 
+      sPqpkSec: sPqpkSec, 
+      sOpkSec: sOpkSec
+    );
+
+    Map<String, String> secretKeys = Map.castFrom(jsonDecode(prefs.getString('secretKeys') ?? ""));
+    secretKeys[email] = await secretKey;
+
+    File sharedFile = File(prefs.getString('sharedPath')!);
+    Map<String, String> sharedKeys = Map.castFrom(jsonDecode(sharedFile.readAsStringSync()));
+    sharedKeys[currEmail] = jsonEncode(secretKeys);
+    sharedFile.writeAsString(jsonEncode(sharedKeys));
+
+    // Update our in memory prefs
+    prefs.setString('secretKeys', sharedKeys[currEmail]!);
+
     setState(() {
       _pendingRequests.removeWhere((request) => request['email'] == email);
     });

@@ -33,7 +33,7 @@ pub struct Message {
     pub updated: Option<NaiveDateTime>,
     pub user_id: u64,
     pub chat_id: u64,
-    pub msg: String
+    pub msg: Vec<u8>
 }
 
 #[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
@@ -168,7 +168,7 @@ impl NewHandshake {
 pub struct NewMessage {
     pub user_id: u64,
     pub chat_id: u64,
-    pub msg: String
+    pub msg: Vec<u8>
 }
 
 #[derive(Insertable)]

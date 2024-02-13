@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:client/src/app_http_client.dart';
 import 'package:client/src/rust/api/simple.dart';
@@ -36,6 +37,8 @@ class _HandshakeRequestScreenState extends State<HandshakeRequestScreen> {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var token = prefs.getString('auth') ?? "";
     var keys = jsonDecode(prefs.getString('keys') ?? "");
+    var currEmail = prefs.getString('currEmail') ?? "";
+
     // Save pending requests to SharedPreferences
     final response = await AppHttpClient.post(
       "handshakes",
@@ -45,18 +48,36 @@ class _HandshakeRequestScreenState extends State<HandshakeRequestScreen> {
       },
     );
 
-    print(response.statusCode);
-
-    var prekey_bundle = response.body;
-
-    var filled_handshake = await initHandshake(keyBundle: prekey_bundle, sIkPub: keys["ik_pub"], sIkSec: keys["ik_sec"]);
+    if (response.statusCode != 201) {
+      return;
+    }
     
+    var prekeyBundle = response.body;
+    var tup = await initHandshake(keyBundle: prekeyBundle, sIkPub: keys["ik_pub"], sIkSec: keys["ik_sec"]);
+    
+    String filledHandshake = tup!.$1;
+    String secretKey = tup.$2;
+
+    // Save this secret key to their email then dump the result back locally
+    Map<String, String> secretKeys = Map.castFrom(jsonDecode(prefs.getString('secretKeys') ?? ""));
+    secretKeys[email] = secretKey;
+    print(secretKey);
+
+    File sharedFile = File(prefs.getString('sharedPath')!);
+    Map<String, String> sharedKeys = Map.castFrom(jsonDecode(sharedFile.readAsStringSync()));
+    sharedKeys[currEmail] = jsonEncode(secretKeys);
+    sharedFile.writeAsString(jsonEncode(sharedKeys));
+
+    // Update our in memory prefs
+    prefs.setString('secretKeys', sharedKeys[currEmail]!);
+
+    // Send filled handshake back to the server
     final last = await AppHttpClient.put("handshakes", 
     headers: {
       "Content-Type": "application/json",
       "authorization": token,
     }, 
-    body: jsonDecode(filled_handshake!));
+    body: jsonDecode(filledHandshake));
 
     print(last.statusCode);
   }
