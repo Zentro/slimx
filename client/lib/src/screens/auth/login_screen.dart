@@ -1,4 +1,5 @@
 import 'package:client/src/models/user_model.dart';
+import 'package:client/src/providers/app_support_directory_provider.dart';
 import 'package:client/src/screens/chat/inbox_screen.dart';
 import 'package:client/src/user.dart';
 import 'package:flutter/material.dart';
@@ -27,9 +28,9 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  Future<void> _login(authProvider, Function(User) onComplete) async {
+  Future<void> _login(authProvider, supportProvider, Function(User) onComplete) async {
     try {
-      user = await authProvider.login(email, password);
+      user = await authProvider.login(email, password, supportProvider);
       onComplete(user);
     } catch (e) {
       setState(() {
@@ -84,7 +85,9 @@ class _LoginScreenState extends State<LoginScreen> {
               // Safely access AuthProvider using Provider.of
               final authProvider =
                   Provider.of<AuthProvider>(context, listen: false);
-              await _login(authProvider, (updatedUser) {
+              final supportProvider =
+                  Provider.of<AppSupportDirectoryProvider>(context, listen: false);
+              await _login(authProvider, supportProvider, (updatedUser) {
                 // Provider.of<UserModel>(context, listen: false)
                 //     .updateUser(updatedUser);
                 Navigator.pushReplacement(

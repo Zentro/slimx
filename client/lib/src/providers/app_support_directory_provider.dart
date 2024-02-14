@@ -1,3 +1,5 @@
+import 'dart:collection';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:client/src/app_logger.dart';
@@ -13,49 +15,61 @@ class AppSupportDirectoryProvider extends ChangeNotifier {
 
   AppSupportDirectoryProvider() {
     AppLogger.instance.i('AppSupportDirectoryProvider(): initialized');
-    initAppSupportDirectory();
   }
 
-  Future<void> initAppSupportDirectory() async {
+  Future<void> setGlobalKeyValues(String email) async {
     try {
       Directory appSupportDir = await getApplicationSupportDirectory();
       _appSupportDirectoryPath = appSupportDir.path;
+      SharedPreferences prefs = await SharedPreferences.getInstance();
 
-      // http code
-      // greet(name: "asd");
-
-      // Check if userKeys.json exists
+      // Open the keys file
       String keysFilePath = '${appSupportDir.path}/userKeys.json';
-      if (!File(keysFilePath).existsSync()) {
-        // Create keys.json if it doesn't exist
-        await _loadOrCreateKeysFile(keysFilePath);
-        AppLogger.instance.i('The userKeys.json was was created.');
-      } else {
-        await _loadKeysFile(keysFilePath);
-        AppLogger.instance.i('The userKeys.json already exists, skipping...');
+      String sharedFilePath = '${appSupportDir.path}/sharedKeys.json';
+
+      File file = File(keysFilePath);
+      File sharedFile = File(sharedFilePath);
+
+      // Make the shared keys file if it doesn't exist
+      if (!sharedFile.existsSync()) {
+        sharedFile.createSync();
+        await sharedFile.writeAsString(jsonEncode(<String, String>{}));
+        AppLogger.instance.i('The sharedKeys.json was created.');
       }
+
+      // Load the shared keys file
+      Map<String, String> sharedKeys = Map.castFrom(jsonDecode(await sharedFile.readAsString()));
+      if (!sharedKeys.containsKey(email)) {
+        sharedKeys[email] = jsonEncode(<String, String>{});
+        sharedFile.writeAsStringSync(jsonEncode(sharedKeys));
+      }
+
+      // Make the keys file if it doesn't exist
+      if (!file.existsSync()) {
+        file.createSync();
+        await file.writeAsString(jsonEncode(<String, String>{}));
+        AppLogger.instance.i('The userKeys.json was created.');
+      }
+
+      // Make keys and dump if they don't have keys
+      Map<String, String> emailKeys = Map.castFrom(jsonDecode(await file.readAsString()));
+      if (!emailKeys.containsKey(email)) {
+        emailKeys[email] = generateKeys();
+        // dump it out again to update
+        file.writeAsStringSync(jsonEncode(emailKeys));
+      }
+
+      // Set global values for key usage
+      prefs.setString('keys', emailKeys[email]!);
+      prefs.setString('filePath', keysFilePath);
+      prefs.setString('secretKeys', sharedKeys[email]!);
+      prefs.setString('sharedPath', sharedFilePath);
+      prefs.setString('currEmail', email);
 
       notifyListeners();
     } catch (e) {
       AppLogger.instance.e(e);
       // Handle error
     }
-  }
-
-  Future<void> _loadKeysFile(String filepath) async {
-    File file = File(filepath);
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    prefs.setString('keys', await file.readAsString());
-  }
-
-  Future<void> _loadOrCreateKeysFile(String filepath) async {
-    File file = File(filepath);
-
-    var keys = generateKeys();
-
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    prefs.setString('keys', keys);
-
-    await file.writeAsString(keys);
   }
 }

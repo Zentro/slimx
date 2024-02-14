@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:client/src/app_logger.dart';
 import 'dart:convert';
 
+import 'app_support_directory_provider.dart';
+
 class AuthProvider extends ChangeNotifier {
   bool _isLoggedIn = false; // The no-no variable
   late String apiUrl;
@@ -34,7 +36,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // Provide an asynchronous function to handle user login
-  Future<User> login(String email, String password) async {
+  Future<User> login(String email, String password, AppSupportDirectoryProvider supportProvider) async {
     // The 'async' keyword allows for asynchronous operations within the
     // function body
     try {
@@ -52,6 +54,9 @@ class AuthProvider extends ChangeNotifier {
       );
       if (response.statusCode == 200 || response.statusCode == 418) {
         final String token = response.headers['authorization'] ?? "null";
+
+        // TEST CODE FOR ALLOWING 2 USERS ON ONE DEVICE
+        await supportProvider.setGlobalKeyValues(email);
 
         if (response.statusCode == 418) {
           SharedPreferences prefs = await SharedPreferences.getInstance();

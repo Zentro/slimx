@@ -31,8 +31,7 @@ diesel::table! {
         updated -> Nullable<Timestamp>,
         user_id -> Unsigned<Bigint>,
         chat_id -> Unsigned<Bigint>,
-        #[max_length = 255]
-        msg -> Varchar,
+        msg -> Blob,
     }
 }
 

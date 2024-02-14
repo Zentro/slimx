@@ -5,7 +5,7 @@ CREATE TABLE messages (
     updated TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
     user_id BIGINT UNSIGNED NOT NULL,
     chat_id BIGINT UNSIGNED NOT NULL,
-    msg VARCHAR(255) NOT NULL,
+    msg BLOB NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (chat_id) REFERENCES chats(id)
 )

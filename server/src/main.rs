@@ -10,7 +10,7 @@ async fn main() {
 
     let api = filters::server(issuer, users);
     
-    warp::serve(api).run(([172, 17, 13, 36], 8080)).await;
+    warp::serve(api).run(([127, 0, 0, 1], 8080)).await;
 }
 
 mod filters {
@@ -368,10 +368,12 @@ mod handlers {
             };
 
         // Check if handshake to this person already exists
+        // or vice versa
         if handshakes::table
             .filter(
-                handshakes::sender_id.eq(payload.sub_id)
-                .and(handshakes::receiver_id.eq(recv.id))
+                (handshakes::sender_id.eq(payload.sub_id).and(handshakes::receiver_id.eq(recv.id)))
+                .or
+                (handshakes::sender_id.eq(recv.id).and(handshakes::receiver_id.eq(payload.sub_id)))
             )
             .first::<Handshake>(conn).is_ok() {
                 return Ok(empty_response(StatusCode::CONFLICT))
@@ -442,7 +444,6 @@ mod handlers {
             pqpk: recv_pqpk,
             pqpk_sig: recv_pqpk_sig,
             opk: recv_opk,
-
         };
 
         let response_body = serde_json::to_string(&prekey_bundle).unwrap();
@@ -502,8 +503,21 @@ mod handlers {
             .execute(conn)
             .unwrap();
 
-        // Delete handshake
-        diesel::delete(handshakes::table.filter(handshakes::id.eq(handshake_id))).execute(conn).unwrap();
+        let shakes: Vec<Handshake> = handshakes::table
+        .filter(
+            (handshakes::sender_id.eq(shake.sender_id)
+            .and(handshakes::receiver_id.eq(shake.receiver_id))).or(
+                handshakes::sender_id.eq(shake.receiver_id)
+                .and(handshakes::receiver_id.eq(shake.sender_id))
+            )
+        )
+        .select(Handshake::as_select())
+        .load(conn)
+        .unwrap();
+        // Delete handshakse
+        for handshake in shakes {
+            diesel::delete(handshakes::table.filter(handshakes::id.eq(handshake.id))).execute(conn).unwrap();
+        }
 
         // Return handshake
         let response_body = serde_json::to_string(&shake).unwrap();
@@ -610,7 +624,7 @@ mod handlers {
                     members[1].username.clone()
                 };
             let isMe: bool = message.user_id == payload.sub_id;
-            let msg: String = message.msg;
+            let msg: Vec<u8> = message.msg;
             let to_add: MessageDetails = MessageDetails {created, sender, isMe, msg};
             messages_toret.push(to_add);
         }
@@ -640,22 +654,23 @@ mod handlers {
         // Listen for user's messages and broadcast to the other user if they are 
         // connnected
         while let Some(result) = user_ws_rx.next().await {
-            let msg = match result {
+            let msg: RecvMessage = match result {
                 Ok(msg) => {
-                    let parsed = match msg.to_str() {
+                    let json_text = match msg.to_str() {
                         Ok(m) => m.to_owned(),
                         Err(_) => break,
                     };
-                    serde_json::from_str::<serde_json::Value>(&parsed).unwrap()["text"].as_str().unwrap().to_owned()
+                    serde_json::from_str(&json_text).unwrap()
                 },
                 Err(_) => {
                     break;
                 }
             };
+            let msg = msg;
             let new_msg = NewMessage {
                 user_id: payload.sub_id,
                 chat_id,
-                msg: msg.clone(),
+                msg: msg.text.clone(),
             };
             diesel::insert_into(messages::table)
                 .values(new_msg)
@@ -668,7 +683,7 @@ mod handlers {
                 };
             let created = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
             let isMe = true;
-            let to_sendback = [MessageDetails {created, sender: sender.clone(), isMe, msg: msg.clone()}];
+            let to_sendback = [MessageDetails {created, sender: sender.clone(), isMe, msg: msg.text.clone()}];
             tx.send(Message::text(serde_json::to_string(&to_sendback).unwrap()))
                 .unwrap_or_else(|e| {
                     eprintln!("websocket send error: {}", e);
@@ -678,7 +693,7 @@ mod handlers {
             match &users.read().await.get(&other) {
                 Some(other_ws_tx) => {
                     let isMe: bool = false;
-                    let other_send = [MessageDetails {created, sender, isMe, msg: msg}];
+                    let other_send = [MessageDetails {created, sender, isMe, msg: msg.text.clone()}];
                     other_ws_tx.send(Message::text(serde_json::to_string(&other_send).unwrap()))
                         .unwrap_or_else(|e| {
                             eprintln!("websocket send error: {}", e);
@@ -710,24 +725,26 @@ mod handlers {
 
         for chat in chats {
             if chat.a == payload.sub_id {
-                let other: String = users::table
+                let other: User = users::table
                     .filter(users::id.eq(chat.b))
-                    .select(users::username)
+                    .select(User::as_select())
                     .get_result(conn)
                     .unwrap();
                 to_ret.push(json!({
-                    "username": other,
-                    "chat_id": chat.id.to_string()
+                    "username": other.username,
+                    "chat_id": chat.id.to_string(),
+                    "email": other.email
                 }));
             } else {
-                let other: String = users::table
+                let other: User = users::table
                     .filter(users::id.eq(chat.a))
-                    .select(users::username)
+                    .select(User::as_select())
                     .get_result(conn)
                     .unwrap();
                 to_ret.push(json!({
-                    "username": other,
-                    "chat_id": chat.id.to_string()
+                    "username": other.username,
+                    "chat_id": chat.id.to_string(),
+                    "email": other.email
                 }));
             }
         }

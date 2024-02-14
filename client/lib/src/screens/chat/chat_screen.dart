@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:client/src/rust/api/simple.dart';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -9,12 +12,14 @@ class ChatScreen extends StatefulWidget {
   final String chatID;
   final String authToken;
   final String fromUsername;
+  final String sk;
 
   const ChatScreen(
       {Key? key,
       required this.chatID,
       required this.authToken,
-      required this.fromUsername})
+      required this.fromUsername,
+      required this.sk})
       : super(key: key);
 
   @override
@@ -37,7 +42,7 @@ class _ChatScreenState extends State<ChatScreen> {
       'authorization': widget.authToken,
     };
     channel = IOWebSocketChannel.connect(
-      'ws://172.17.13.36:8080/chat/${widget.chatID}',
+      'ws://127.0.0.1:8080/chat/${widget.chatID}',
       headers: headers,
     );
   }
@@ -71,14 +76,14 @@ class _ChatScreenState extends State<ChatScreen> {
                   );
                 }
 
-                final message = jsonDecode(snapshot.data.toString());
-                for (var i in message) {
+                final messages = jsonDecode(snapshot.data.toString());
+                for (var messageDetails in messages) {
                   _messages.insert(
                       0,
                       Message(
-                        text: i['msg'],
-                        sender: i['sender'],
-                        isMe: i['isMe'],
+                        text: decryptMessage(sSk: widget.sk, combined: messageDetails['msg'].cast<int>()),
+                        sender: messageDetails['sender'],
+                        isMe: messageDetails['isMe'],
                       ));
                 }
 
@@ -125,12 +130,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _handleSubmitted(String text) {
     _textController.clear();
-    Message message = Message(text: text, sender: 'Me', isMe: true);
-    //_messages.insert(0, message);
-    // setState(() {
-    //   //isLoading = true; // Set loading state to true
-    // });
-    channel.sink.add(jsonEncode(message.toJson()));
+    var ct = encryptMessage(sSk: widget.sk, msg: text);
+    Map<String, dynamic> message = {"text": ct, "sender": 'Me', "isMe": true};
+    channel.sink.add(jsonEncode(message));
   }
 
   @override

@@ -22,7 +22,7 @@ Future<String> signAndPublish({required String keyJson, dynamic hint}) =>
     RustLib.instance.api.signAndPublish(keyJson: keyJson, hint: hint);
 
 /// connection with someone
-Future<String?> initHandshake(
+Future<(String, String)?> initHandshake(
         {required String keyBundle,
         required String sIkPub,
         required String sIkSec,
@@ -30,8 +30,31 @@ Future<String?> initHandshake(
     RustLib.instance.api.initHandshake(
         keyBundle: keyBundle, sIkPub: sIkPub, sIkSec: sIkSec, hint: hint);
 
-Future<void> completeHandshake({dynamic hint}) =>
-    RustLib.instance.api.completeHandshake(hint: hint);
+Future<String> completeHandshake(
+        {required String handshake,
+        required String sIkPub,
+        required String sIkSec,
+        required String sSpkSec,
+        required String sPqpkSec,
+        required String sOpkSec,
+        dynamic hint}) =>
+    RustLib.instance.api.completeHandshake(
+        handshake: handshake,
+        sIkPub: sIkPub,
+        sIkSec: sIkSec,
+        sSpkSec: sSpkSec,
+        sPqpkSec: sPqpkSec,
+        sOpkSec: sOpkSec,
+        hint: hint);
+
+String decryptMessage(
+        {required String sSk, required List<int> combined, dynamic hint}) =>
+    RustLib.instance.api
+        .decryptMessage(sSk: sSk, combined: combined, hint: hint);
+
+Uint8List encryptMessage(
+        {required String sSk, required String msg, dynamic hint}) =>
+    RustLib.instance.api.encryptMessage(sSk: sSk, msg: msg, hint: hint);
 
 String greet({required String name, dynamic hint}) =>
     RustLib.instance.api.greet(name: name, hint: hint);

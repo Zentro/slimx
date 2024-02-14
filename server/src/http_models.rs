@@ -73,5 +73,13 @@ pub struct MessageDetails {
     pub created: u64,
     pub sender: String,
     pub isMe: bool,
-    pub msg: String
+    pub msg: Vec<u8>
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct RecvMessage {
+    pub sender: String,
+    pub isMe: bool,
+    #[serde(with = "serde_bytes")]
+    pub text: Vec<u8>
 }
