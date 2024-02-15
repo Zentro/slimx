@@ -72,8 +72,8 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
     }
 
     var handshake = jsonDecode(response.body);
-    var pqpk_ind = handshake['pqpk_ind'];
-    var opk_ind = handshake['opk_ind'];
+    String? pqpkHash = handshake['pqpk_hash'];
+    String? opkHash = handshake['opk_hash'];
 
     Map<String, dynamic> keys = Map.castFrom(jsonDecode(prefs.getString('keys')!));
     String sIkPub = keys['ik_pub'];
@@ -82,30 +82,26 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
     String sPqpkSec;
     String sOpkSec;
 
-    if (pqpk_ind < 0) {
+    if (pqpkHash == null) {
       sPqpkSec = keys['pqspk_sec']!;
     } else {
       // They used a key from you, need to delete it after using
-      keys['pqopk_sec_arr'] = List.castFrom(keys['pqopk_sec_arr']!);
-      keys['pqopk_pub_arr'] = List.castFrom(keys['pqopk_pub_arr']!);
-      sPqpkSec = keys['pqopk_sec_arr'][pqpk_ind];
+      keys['pqopk_map'] = Map.castFrom<String, dynamic, String, dynamic>(keys['pqopk_map']!);
+      sPqpkSec = keys['pqopk_map'][pqpkHash][0];
 
-      keys['pqopk_sec_arr'][pqpk_ind] = "";
-      keys['pqopk_pub_arr'][pqpk_ind] = "";
+      keys['pqopk_map'].remove(pqpkHash);
     }
 
-    if (opk_ind < 0) {
+    if (opkHash == null) {
       sOpkSec = "";
     } else {
-      keys['opk_sec_arr'] = List.castFrom(keys['opk_sec_arr']!);
-      keys['opk_pub_arr'] = List.castFrom(keys['opk_pub_arr']!);
-      sOpkSec = keys['opk_sec_arr']![opk_ind];
+      keys['opk_map'] = Map.castFrom<String, dynamic, String, dynamic>(keys['opk_map']!);
+      sOpkSec = keys['opk_map'][opkHash][0];
 
-      keys['opk_sec_arr'][opk_ind] = "";
-      keys['opk_pub_arr'][opk_ind] = "";
+      keys['opk_map'].remove(opkHash);
     }
 
-    if (opk_ind < 0 || pqpk_ind < 0) {
+    if (opkHash != null || pqpkHash != null) {
       var encodedKeys = jsonEncode(keys);
       prefs.setString('keys', encodedKeys);
       
@@ -116,6 +112,7 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
       var currEmail = prefs.getString('currEmail');
       emailKeys[currEmail!] = encodedKeys;
       file.writeAsStringSync(jsonEncode(emailKeys));
+      print("Dump complete");
     }
 
     var secretKey = completeHandshake(

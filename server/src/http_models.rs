@@ -1,6 +1,5 @@
 use std::{sync::Arc, collections::HashMap};
-use chrono::NaiveDateTime;
-use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio::sync::{mpsc, RwLock};
 
 use serde_derive::{Deserialize, Serialize};
 use warp::filters::ws::Message;
@@ -36,9 +35,8 @@ pub struct KeysForm {
     pub spk_sig: String,
     pub pqspk: String,
     pub pqspk_sig: String,
-    pub opk_arr: Vec<String>,
-    pub pqopk_arr: Vec<String>,
-    pub pqopk_sig_arr: Vec<String>
+    pub opk_map: HashMap<String, String>,
+    pub pqopk_map: HashMap<String, (String, String)>
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

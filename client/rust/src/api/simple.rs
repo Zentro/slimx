@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use pqc_kyber::*;
 use rand::{rngs::StdRng, SeedableRng};
 use serde_derive::{Deserialize, Serialize};
@@ -6,7 +8,7 @@ use x25519_dalek::{StaticSecret, PublicKey, x25519};
 
 use aes_gcm::{aead::{Aead, Nonce, Payload}, AeadCore, Aes256Gcm, Key, KeyInit};
 use hkdf::Hkdf;
-use sha2::Sha512;
+use sha2::{Sha256, Sha512, Digest};
 
 use super::xeddsa;
 const ONETIME_CURVE: usize = 32;
@@ -35,7 +37,8 @@ reupload of all keys to the server.
 */
 #[flutter_rust_bridge::frb(sync)]
 pub fn generate_keys() -> String {
-    // PQOPK
+    // PQPK
+    let pqspk_pair = keypair(&mut StdRng::from_entropy()).unwrap();
     let mut pqopk_pairs: Vec<Keypair> = vec![];
     for _ in 0..ONETIME_PQKEM {
         let to_add = keypair(&mut StdRng::from_entropy()).unwrap();
@@ -45,63 +48,49 @@ pub fn generate_keys() -> String {
     // Generate all the secret portions of the keys
     let ik_sec = StaticSecret::random_from_rng(StdRng::from_entropy());
     let spk_sec = StaticSecret::random_from_rng(StdRng::from_entropy());
-    let pqspk_pair = keypair(&mut StdRng::from_entropy()).unwrap();
     let pqspk_sec = pqspk_pair.secret;
-    let mut opk_secs: Vec<StaticSecret> = vec![];
-    for _ in 0..ONETIME_CURVE {
-        let to_add = StaticSecret::random_from_rng(StdRng::from_entropy());
-        opk_secs.push(to_add);
-    }
-    let mut pqopk_secs: Vec<pqc_kyber::SecretKey> = vec![];
-    for i in 0..ONETIME_PQKEM {
-        let to_add = pqopk_pairs[i].secret;
-        pqopk_secs.push(to_add);
-    }
 
     // Derive the public versions here
     let ik_pub = PublicKey::from(&ik_sec);
     let spk_pub = PublicKey::from(&spk_sec);
     let pqspk_pub = pqspk_pair.public;
-    let mut opk_pubs: Vec<PublicKey> = vec![];
-    for i in 0..ONETIME_CURVE {
-        let to_add = PublicKey::from(&opk_secs[i]);
-        opk_pubs.push(to_add);
-    }
-    let mut pqopk_pubs: Vec<pqc_kyber::PublicKey> = vec![];
-    for i in 0..ONETIME_PQKEM {
-        let to_add = pqopk_pairs[i].public;
-        pqopk_pubs.push(to_add);
+
+    // Derive all the one-time keys
+    let mut opk_map: HashMap<String, (String, String)> = HashMap::new();
+    for _ in 0..ONETIME_CURVE {
+        let opk_sec = StaticSecret::random_from_rng(StdRng::from_entropy());
+        let opk_pub = PublicKey::from(&opk_sec);
+
+        let s_opk_sec = hex::encode(opk_sec.as_bytes());
+        let s_opk_pub = hex::encode(opk_pub.as_bytes());
+        let mut hasher = Sha256::new();
+        hasher.update(s_opk_pub.as_bytes());
+        let s_opk_hash = hex::encode(hasher.finalize());
+
+        opk_map.insert(s_opk_hash, (s_opk_sec, s_opk_pub));
     }
 
-    // JSON'ify secrets
+    let mut pqopk_map: HashMap<String, (String, String)> = HashMap::new();
+    for i in 0..ONETIME_PQKEM {
+        let s_pqopk_sec = hex::encode(pqopk_pairs[i].secret);
+        let s_pqopk_pub = hex::encode(pqopk_pairs[i].public);
+
+        let mut hasher = Sha256::new();
+        hasher.update(s_pqopk_pub.as_bytes());
+        let s_pqopk_hash = hex::encode(hasher.finalize());
+
+        pqopk_map.insert(s_pqopk_hash, (s_pqopk_sec, s_pqopk_pub));
+    }
+
+    // Stringify secrets
     let s_ik_sec: String = hex::encode(ik_sec.as_bytes());
     let s_spk_sec: String = hex::encode(spk_sec.as_bytes());
     let s_pqspk_sec: String = hex::encode(pqspk_sec);
-    let mut s_opk_secs: Vec<String> = vec![];
-    for i in 0..ONETIME_CURVE {
-        let to_add = hex::encode(opk_secs[i].as_bytes());
-        s_opk_secs.push(to_add);
-    }
-    let mut s_pqopk_secs: Vec<String> = vec![];
-    for i in 0..ONETIME_PQKEM {
-        let to_add = hex::encode(pqopk_secs[i]);
-        s_pqopk_secs.push(to_add);
-    }
 
-    // JSON'ify publics
+    // Stringify publics
     let s_ik_pub: String = hex::encode(ik_pub.as_bytes());
     let s_spk_pub: String = hex::encode(spk_pub.as_bytes());
     let s_pqspk_pub: String = hex::encode(pqspk_pub);
-    let mut s_opk_pubs: Vec<String> = vec![];
-    for i in 0..ONETIME_CURVE {
-        let to_add = hex::encode(opk_pubs[i].as_bytes());
-        s_opk_pubs.push(to_add);
-    }
-    let mut s_pqopk_pubs: Vec<String> = vec![];
-    for i in 0..ONETIME_PQKEM {
-        let to_add = hex::encode(pqopk_pubs[i]);
-        s_pqopk_pubs.push(to_add);
-    }
 
     let dump = json!({
         "ik_sec": s_ik_sec,
@@ -110,10 +99,8 @@ pub fn generate_keys() -> String {
         "spk_pub": s_spk_pub,
         "pqspk_sec": s_pqspk_sec,
         "pqspk_pub": s_pqspk_pub,
-        "opk_sec_arr": s_opk_secs,
-        "opk_pub_arr": s_opk_pubs,
-        "pqopk_sec_arr": s_pqopk_secs,
-        "pqopk_pub_arr": s_pqopk_pubs,
+        "opk_map": opk_map,
+        "pqopk_map": pqopk_map
     }).to_string();
     dump
 }
@@ -129,7 +116,6 @@ pub fn sign_and_publish(key_json: String) -> String{
     for i in 0..ONETIME_PQKEM+2 {
         csprg.fill_bytes(&mut z[i]);
     }
-    println!("{}", key_json);
 
     let keys: Value = serde_json::from_str(&key_json).unwrap();
 
@@ -141,7 +127,8 @@ pub fn sign_and_publish(key_json: String) -> String{
     // Get all the hex-form public keys from json
     let s_spk_pub = keys["spk_pub"].as_str().unwrap();
     let s_pqspk_pub = keys["pqspk_pub"].as_str().unwrap();
-    let s_pqopk_pub_arr = &keys["pqopk_pub_arr"];
+    let pqopk_map = &keys["pqopk_map"].as_object().unwrap();
+    let opk_map = &keys["opk_map"].as_object().unwrap();
 
     // Convert to byte arrays for signing
     let mut spk_pub: [u8; 32] = [0; 32];
@@ -163,38 +150,43 @@ pub fn sign_and_publish(key_json: String) -> String{
         z[1].to_vec()
     );
 
-    let mut pqopk_pub_sig_arr: Vec<[u8; 64]> = vec![];
-    for i in 0..ONETIME_PQKEM {
-        let s_pqopk_pub = s_pqopk_pub_arr[i].as_str().unwrap();
+    // Sign the pqopks
+    let mut pqopk_pub_map: HashMap<String, (String, String)> = HashMap::new();
+    for (i, hash) in pqopk_map.keys().enumerate() {
+        let pqopk_pair = pqopk_map[hash].as_array().unwrap();
+        let s_pqopk_pub = pqopk_pair.get(1).unwrap().as_str().unwrap();
+
         let mut pqopk_pub: [u8; KYBER_PUBLICKEYBYTES] = [0; KYBER_PUBLICKEYBYTES];
         hex::decode_to_slice(s_pqopk_pub, &mut pqopk_pub).unwrap();
-        let to_add = xeddsa::sign(
+        let s_pqopk_sig = hex::encode(xeddsa::sign(
             ik_sec.clone(),
             pqopk_pub.to_vec(),
             z[i+2].to_vec()
-        );
-        pqopk_pub_sig_arr.push(to_add);
+        ));
+        pqopk_pub_map.insert(hash.to_string(), (s_pqopk_pub.to_owned(), s_pqopk_sig));
+    }
+
+    // Get opks as a map of their pubs associated with a hash
+    let mut opk_pub_map: HashMap<String, String> = HashMap::new();
+    for hash in opk_map.keys() {
+        let opk_pair = opk_map[hash].as_array().unwrap();
+        let s_opk_pub = opk_pair.get(1).unwrap().as_str().unwrap();
+        opk_pub_map.insert(hash.to_string(), s_opk_pub.to_owned());
     }
 
     // Get signature as hex encoded data
     let s_spk_pub_sig: String = hex::encode(spk_pub_sig);
     let s_pqspk_pub_sig: String = hex::encode(pqspk_pub_sig);
-    let mut s_pqopk_pub_sig_arr: Vec<String> = vec![];
-    for i in 0..ONETIME_PQKEM {
-        let to_add = hex::encode(pqopk_pub_sig_arr[i]);
-        s_pqopk_pub_sig_arr.push(to_add);
-    }
 
-    // Send the registration POST request
+    // This should match the KeyForm in the Rust server
     let body = serde_json::to_string(&json!({
         "ik": keys["ik_pub"],
         "spk": keys["spk_pub"],
         "spk_sig": s_spk_pub_sig,
         "pqspk": keys["pqspk_pub"],
         "pqspk_sig": s_pqspk_pub_sig,
-        "opk_arr": keys["opk_pub_arr"],
-        "pqopk_arr": keys["pqopk_pub_arr"],
-        "pqopk_sig_arr": s_pqopk_pub_sig_arr,
+        "opk_map": opk_pub_map,
+        "pqopk_map": pqopk_pub_map
     })).unwrap();
 
     body
@@ -290,8 +282,8 @@ struct Handshake {
     pub ek: Option<String>,
     pub pqkem_ct: Option<String>,
     pub ct: Option<String>,
-    pub pqpk_ind: i32,
-    pub opk_ind: i32
+    pub pqpk_hash: Option<String>,
+    pub opk_hash: Option<String>
 }
 
 pub fn complete_handshake(

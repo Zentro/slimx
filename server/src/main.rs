@@ -277,9 +277,6 @@ mod handlers {
     pub async fn upload_keys(
         iss: Issuer, login_token: String, keys: KeysForm
     ) -> Result<impl warp::Reply, warp::Rejection> {
-        logger::log(LogLevel::Debug, &format!(
-            "asdas"
-        ));
         let payload: auth::Payload = verify_token!(iss, login_token);
         logger::log(LogLevel::Debug, &format!(
             "User {} is uploading keys", payload.sub
@@ -307,22 +304,22 @@ mod handlers {
             pqspk: keys.pqspk,
             pqspk_sig: keys.pqspk_sig,
         };
-        let mut onetimekeys: Vec<NewOnetimeKey> = Vec::with_capacity(keys.opk_arr.len());
-        for (i, opk) in keys.opk_arr.iter().enumerate() {
+        let mut onetimekeys: Vec<NewOnetimeKey> = Vec::with_capacity(keys.opk_map.len());
+        for (hash, opk) in keys.opk_map {
             let new = NewOnetimeKey {
                 user_id: payload.sub_id,
-                opk: opk.to_string(),
-                i: i.try_into().unwrap()
+                opk: opk,
+                hash_id: hash
             };
             onetimekeys.push(new);
         }
-        let mut onetimepqkem: Vec<NewOnetimePqkem> = Vec::with_capacity(keys.pqopk_arr.len());
-        for (i, (pqopk, sig)) in keys.pqopk_arr.iter().zip(keys.pqopk_sig_arr.iter()).enumerate() {
+        let mut onetimepqkem: Vec<NewOnetimePqkem> = Vec::with_capacity(keys.pqopk_map.len());
+        for(hash, (pqopk, sig)) in keys.pqopk_map {
             let new = NewOnetimePqkem {
                 user_id: payload.sub_id,
-                pqopk: pqopk.to_string(),
-                sig: sig.to_string(),
-                i: i.try_into().unwrap()
+                pqopk: pqopk,
+                sig: sig,
+                hash_id: hash
             };
             onetimepqkem.push(new);
         }
@@ -379,6 +376,8 @@ mod handlers {
                 return Ok(empty_response(StatusCode::CONFLICT))
             };
 
+        // TODO!! check for if handshake already completed with this person
+
         // Get receiver's keys
         let recv_perms: PermKeys = match PermKeys::belonging_to(&recv)
             .select(PermKeys::as_select())
@@ -394,19 +393,19 @@ mod handlers {
             .first(conn).ok();
 
         // Check for existence of pqkem onetimes
-        let (recv_pqpk, recv_pqpk_sig, recv_pqpk_ind) = match recv_pqpk {
+        let (recv_pqpk, recv_pqpk_sig, recv_pqpk_hash) = match recv_pqpk {
             Some(pq) => {
                 let _ = diesel::delete(onetime_pqkem::table.filter(onetime_pqkem::id.eq(pq.id))).execute(conn);
-                (pq.pqopk, pq.sig, pq.i)
+                (pq.pqopk, pq.sig, pq.hash_id)
             },
-            None => (recv_perms.pqspk, recv_perms.pqspk_sig, -1),
+            None => (recv_perms.pqspk, recv_perms.pqspk_sig, None),
         };
-        let (recv_opk, recv_opk_ind) = match recv_opk {
+        let (recv_opk, recv_opk_hash) = match recv_opk {
             Some(op) => {
                 let _ = diesel::delete(onetime_keys::table.filter(onetime_keys::id.eq(op.id))).execute(conn);
-                (Some(op.opk), op.i)
+                (Some(op.opk), op.hash_id)
             },
-            None => (None, -1),
+            None => (None, None),
         };
         
         // Get the sender's identity key for the initial handshake request
@@ -421,7 +420,7 @@ mod handlers {
         // Create a new pending handshake (prior to the actual steps being done)
         let Ok(handshake_id) = conn.transaction::<u64, diesel::result::Error, _>(|conn| {
             diesel::insert_into(handshakes::table)
-                .values(NewHandshake::new(payload.sub_id, recv.id, send_ik.clone(), recv_opk_ind, recv_pqpk_ind))
+                .values(NewHandshake::new(payload.sub_id, recv.id, send_ik.clone(), recv_opk_hash, recv_pqpk_hash))
                 .execute(conn)?;
             let handshake: Handshake = handshakes::table
                 .filter(

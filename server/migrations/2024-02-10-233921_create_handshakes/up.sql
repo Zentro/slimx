@@ -7,8 +7,8 @@ CREATE TABLE handshakes (
     ek VARCHAR(255),
     pqkem_ct TEXT,
     ct TEXT,
-    opk_ind INTEGER NOT NULL,
-    pqpk_ind INTEGER NOT NULL,
+    opk_hash TEXT,
+    pqpk_hash TEXT,
     FOREIGN KEY (sender_id) REFERENCES users(id),
     FOREIGN KEY (receiver_id) REFERENCES users(id)
 )

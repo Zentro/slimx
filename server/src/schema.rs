@@ -19,8 +19,8 @@ diesel::table! {
         ek -> Nullable<Varchar>,
         pqkem_ct -> Nullable<Text>,
         ct -> Nullable<Text>,
-        opk_ind -> Integer,
-        pqpk_ind -> Integer,
+        opk_hash -> Nullable<Text>,
+        pqpk_hash -> Nullable<Text>,
     }
 }
 
@@ -41,7 +41,7 @@ diesel::table! {
         user_id -> Unsigned<Bigint>,
         #[max_length = 255]
         opk -> Varchar,
-        i -> Integer,
+        hash_id -> Nullable<Text>,
     }
 }
 
@@ -52,7 +52,7 @@ diesel::table! {
         pqopk -> Text,
         #[max_length = 255]
         sig -> Varchar,
-        i -> Integer,
+        hash_id -> Nullable<Text>,
     }
 }
 

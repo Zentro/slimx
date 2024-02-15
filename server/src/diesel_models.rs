@@ -58,7 +58,7 @@ pub struct OnetimeKey {
     pub id: u64,
     pub user_id: u64,
     pub opk: String,
-    pub i: i32
+    pub hash_id: Option<String>
 }
 
 #[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
@@ -70,7 +70,7 @@ pub struct OnetimePqkem {
     pub user_id: u64,
     pub pqopk: String,
     pub sig: String,
-    pub i: i32
+    pub hash_id: Option<String>
 }
 
 #[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq, Serialize)]
@@ -85,8 +85,8 @@ pub struct Handshake {
     pub ek: Option<String>,
     pub pqkem_ct: Option<String>,
     pub ct: Option<String>,
-    pub pqpk_ind: i32,
-    pub opk_ind: i32
+    pub pqpk_hash: Option<String>,
+    pub opk_hash: Option<String>
 }
 
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
@@ -123,7 +123,7 @@ pub struct NewPermKeys {
 pub struct NewOnetimeKey {
     pub user_id: u64,
     pub opk: String,
-    pub i: i32
+    pub hash_id: String
 }
 
 #[derive(Insertable)]
@@ -132,7 +132,7 @@ pub struct NewOnetimePqkem {
     pub user_id: u64,
     pub pqopk: String,
     pub sig: String,
-    pub i: i32
+    pub hash_id: String
 }
 
 #[derive(Insertable)]
@@ -144,12 +144,12 @@ pub struct NewHandshake {
     pub ek: Option<String>,
     pub pqkem_ct: Option<String>,
     pub ct: Option<String>,
-    pub opk_ind: i32,
-    pub pqpk_ind: i32
+    pub opk_hash: Option<String>,
+    pub pqpk_hash: Option<String>
 }
 
 impl NewHandshake {
-    pub fn new(sid: u64, rid: u64, ik: String, o_ind: i32, pq_ind: i32) -> NewHandshake {
+    pub fn new(sid: u64, rid: u64, ik: String, opk_hash: Option<String>, pqpk_hash: Option<String>) -> NewHandshake {
         NewHandshake {
             sender_id: sid,
             receiver_id: rid,
@@ -157,8 +157,8 @@ impl NewHandshake {
             ek: None,
             pqkem_ct: None,
             ct: None,
-            opk_ind: o_ind,
-            pqpk_ind: pq_ind
+            opk_hash,
+            pqpk_hash
         }
     }
 }

@@ -4,6 +4,6 @@ CREATE TABLE onetime_pqkem (
     user_id BIGINT UNSIGNED NOT NULL,
     pqopk TEXT NOT NULL,
     sig VARCHAR(255) NOT NULL,
-    i INT NOT NULL,
+    hash_id TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id)
 )
