@@ -40,7 +40,9 @@ Hostname: ${platform.localHostname}
 
   // todo: move this later
   SharedPreferences prefs = await SharedPreferences.getInstance();
-  prefs.setString('apiUrl', 'http://127.0.0.1:8080'); // Hard-coded default
+  const String baseUrl = "127.0.0.1";
+  prefs.setString('baseUrl', baseUrl);
+  prefs.setString('apiUrl', 'http://$baseUrl:8080');
 
   await RustLib.init();
   runApp(

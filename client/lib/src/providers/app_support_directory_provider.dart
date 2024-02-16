@@ -17,7 +17,7 @@ class AppSupportDirectoryProvider extends ChangeNotifier {
     AppLogger.instance.i('AppSupportDirectoryProvider(): initialized');
   }
 
-  Future<void> setGlobalKeyValues(String email) async {
+  Future<void> setGlobalKeyValues(String email, bool generate) async {
     try {
       Directory appSupportDir = await getApplicationSupportDirectory();
       _appSupportDirectoryPath = appSupportDir.path;
@@ -53,10 +53,12 @@ class AppSupportDirectoryProvider extends ChangeNotifier {
 
       // Make keys and dump if they don't have keys
       Map<String, String> emailKeys = Map.castFrom(jsonDecode(await file.readAsString()));
-      if (!emailKeys.containsKey(email)) {
+      if (generate && !emailKeys.containsKey(email)) {
         emailKeys[email] = generateKeys();
         // dump it out again to update
         file.writeAsStringSync(jsonEncode(emailKeys));
+      } else if (!emailKeys.containsKey(email)) {
+        return;
       }
 
       // Set global values for key usage

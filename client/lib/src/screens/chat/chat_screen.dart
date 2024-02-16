@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:client/src/rust/api/simple.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -37,12 +38,14 @@ class _ChatScreenState extends State<ChatScreen> {
     _connectToWebSocket();
   }
 
-  void _connectToWebSocket() {
+  Future<void> _connectToWebSocket() async {
     Map<String, dynamic> headers = {
       'authorization': widget.authToken,
     };
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    var baseUrl = prefs.getString("baseUrl")!;
     channel = IOWebSocketChannel.connect(
-      'ws://127.0.0.1:8080/chat/${widget.chatID}',
+      'ws://$baseUrl:8080/chat/${widget.chatID}',
       headers: headers,
     );
   }

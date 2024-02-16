@@ -55,12 +55,10 @@ class AuthProvider extends ChangeNotifier {
       );
       if (loginResponse.statusCode == 200 || loginResponse.statusCode == 418) {
         SharedPreferences prefs = await SharedPreferences.getInstance();
-        String token = loginResponse.headers['authorization'] ?? "null";
-
-        // TEST CODE FOR ALLOWING 2 USERS ON ONE DEVICE
-        await supportProvider.setGlobalKeyValues(email);
+        String? token = loginResponse.headers['authorization'];
 
         if (loginResponse.statusCode == 418) {
+          await supportProvider.setGlobalKeyValues(email, true);
           var keys = prefs.getString('keys');
           var requestForm = await signAndPublish(keyJson: keys ?? "");
           
@@ -69,15 +67,20 @@ class AuthProvider extends ChangeNotifier {
             body: jsonDecode(requestForm),
             headers: {
               'Content-Type': 'application/json',
-              "authorization": token,
+              "authorization": token!,
             },
           );
           print(keyUploadResponse.statusCode);
         }
 
         if (loginResponse.statusCode == 200) {
+          await supportProvider.setGlobalKeyValues(email, false);
+          String? temp = prefs.getString('keys');
+          if (temp == null) {
+            throw Exception("Keys are on the server for this account but is not locally available");
+          } 
           // Complete the challenge
-          var keys = jsonDecode(prefs.getString('keys')!);
+          var keys = jsonDecode(temp);
           var ik_sec = keys['ik_sec'];
           final String challenge = loginResponse.headers['challenge'] ?? "";
           final String signature = signChallenge(sIkSec: ik_sec, chal: challenge);
@@ -90,11 +93,15 @@ class AuthProvider extends ChangeNotifier {
               'signature': signature
             }
           );
-          print(challengeResponse.statusCode);
-          token = challengeResponse.headers['authorization'] ?? "null";
+          
+          if (challengeResponse.statusCode != 200) {
+            throw Exception('Unable to complete challenge. Local keys do not match the server keys.');
+          }
+
+          token = challengeResponse.headers['authorization'];
         }
 
-        prefs.setString('auth', token);
+        prefs.setString('auth', token!);
         final Map<String, dynamic> responseData = json.decode(loginResponse.body);
         final User user = User.fromJson(responseData);
 
