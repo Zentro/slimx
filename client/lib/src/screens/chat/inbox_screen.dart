@@ -24,6 +24,7 @@ class _InboxScreen extends State<InboxScreen> {
   final String chatsUri = 'inbox';
   List<Map<String, dynamic>> data = [];
   late Map<String, String> secretKeys;
+  late String baseUrl;
 
   @override
   void initState() {
@@ -50,6 +51,7 @@ class _InboxScreen extends State<InboxScreen> {
         // If the server returns a 200 OK response, you can process the data here
         List<dynamic> initData = jsonDecode(response.body);
         secretKeys = Map.castFrom(jsonDecode(prefs.getString('secretKeys') ?? ""));
+        baseUrl = prefs.getString('baseUrl')!;
         // For example, you can print the data to the console
         // print(initData);
         data = initData.map((e) => e as Map<String, dynamic>).toList();
@@ -134,8 +136,6 @@ class _InboxScreen extends State<InboxScreen> {
               trailing:
                   Text('2h ago'), // You can use a more complex widget here
               onTap: () {
-                print(data[index]['email']);
-                print(secretKeys);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -143,7 +143,8 @@ class _InboxScreen extends State<InboxScreen> {
                             chatID: data[index]['chat_id'],
                             authToken: authToken,
                             fromUsername: data[index]['username'],
-                            sk: secretKeys[data[index]['email']]!
+                            sk: secretKeys[data[index]['email']]!,
+                            baseUrl: baseUrl
                           )),
                 );
               },

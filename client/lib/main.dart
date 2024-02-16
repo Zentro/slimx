@@ -40,7 +40,7 @@ Hostname: ${platform.localHostname}
 
   // todo: move this later
   SharedPreferences prefs = await SharedPreferences.getInstance();
-  const String baseUrl = "127.0.0.1";
+  const String baseUrl = "10.147.17.151";
   prefs.setString('baseUrl', baseUrl);
   prefs.setString('apiUrl', 'http://$baseUrl:8080');
 

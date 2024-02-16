@@ -14,13 +14,15 @@ class ChatScreen extends StatefulWidget {
   final String authToken;
   final String fromUsername;
   final String sk;
+  final String baseUrl;
 
   const ChatScreen(
       {Key? key,
       required this.chatID,
       required this.authToken,
       required this.fromUsername,
-      required this.sk})
+      required this.sk,
+      required this.baseUrl})
       : super(key: key);
 
   @override
@@ -38,14 +40,12 @@ class _ChatScreenState extends State<ChatScreen> {
     _connectToWebSocket();
   }
 
-  Future<void> _connectToWebSocket() async {
+  void _connectToWebSocket() {
     Map<String, dynamic> headers = {
       'authorization': widget.authToken,
     };
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    var baseUrl = prefs.getString("baseUrl")!;
     channel = IOWebSocketChannel.connect(
-      'ws://$baseUrl:8080/chat/${widget.chatID}',
+      'ws://${widget.baseUrl}:8080/chat/${widget.chatID}',
       headers: headers,
     );
   }
