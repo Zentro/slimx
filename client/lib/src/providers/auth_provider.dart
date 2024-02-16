@@ -1,4 +1,5 @@
 import 'package:client/src/rust/api/simple.dart';
+import 'package:client/src/rust/api/xeddsa.dart';
 import 'package:client/src/user.dart';
 import 'package:flutter/material.dart';
 import 'package:client/src/app_http_client.dart';
@@ -45,25 +46,25 @@ class AuthProvider extends ChangeNotifier {
         'password': password,
       };
 
-      final response = await AppHttpClient.post(
+      final loginResponse = await AppHttpClient.post(
         loginUriPath,
         body: requestBody,
         headers: {
           'Content-Type': 'application/json',
         },
       );
-      if (response.statusCode == 200 || response.statusCode == 418) {
-        final String token = response.headers['authorization'] ?? "null";
+      if (loginResponse.statusCode == 200 || loginResponse.statusCode == 418) {
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        String token = loginResponse.headers['authorization'] ?? "null";
 
         // TEST CODE FOR ALLOWING 2 USERS ON ONE DEVICE
         await supportProvider.setGlobalKeyValues(email);
 
-        if (response.statusCode == 418) {
-          SharedPreferences prefs = await SharedPreferences.getInstance();
+        if (loginResponse.statusCode == 418) {
           var keys = prefs.getString('keys');
           var requestForm = await signAndPublish(keyJson: keys ?? "");
           
-          final response = await AppHttpClient.post(
+          final keyUploadResponse = await AppHttpClient.post(
             'keys',
             body: jsonDecode(requestForm),
             headers: {
@@ -71,15 +72,30 @@ class AuthProvider extends ChangeNotifier {
               "authorization": token,
             },
           );
-
-          print(response.statusCode);
+          print(keyUploadResponse.statusCode);
         }
 
-        SharedPreferences prefs = await SharedPreferences.getInstance();
+        if (loginResponse.statusCode == 200) {
+          // Complete the challenge
+          var keys = jsonDecode(prefs.getString('keys')!);
+          var ik_sec = keys['ik_sec'];
+          final String challenge = loginResponse.headers['challenge'] ?? "";
+          final String signature = signChallenge(sIkSec: ik_sec, chal: challenge);
+
+          final challengeResponse = await AppHttpClient.put(
+            'login',
+            body: "",
+            headers: {
+              'challenge': challenge,
+              'signature': signature
+            }
+          );
+          print(challengeResponse.statusCode);
+          token = challengeResponse.headers['authorization'] ?? "null";
+        }
+
         prefs.setString('auth', token);
-
-        final Map<String, dynamic> responseData = json.decode(response.body);
-
+        final Map<String, dynamic> responseData = json.decode(loginResponse.body);
         final User user = User.fromJson(responseData);
 
         notifyListeners();

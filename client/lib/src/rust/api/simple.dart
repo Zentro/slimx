@@ -15,6 +15,10 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 String generateKeys({dynamic hint}) =>
     RustLib.instance.api.generateKeys(hint: hint);
 
+String signChallenge(
+        {required String sIkSec, required String chal, dynamic hint}) =>
+    RustLib.instance.api.signChallenge(sIkSec: sIkSec, chal: chal, hint: hint);
+
 /// * Called upon registration to the server. Will publish all stored public
 /// * keys.
 ///

@@ -10,7 +10,7 @@ use aes_gcm::{aead::{Aead, Nonce, Payload}, AeadCore, Aes256Gcm, Key, KeyInit};
 use hkdf::Hkdf;
 use sha2::{Sha256, Sha512, Digest};
 
-use super::xeddsa;
+use super::xeddsa::{self, sign};
 const ONETIME_CURVE: usize = 32;
 const ONETIME_PQKEM: usize = 32;
 
@@ -103,6 +103,20 @@ pub fn generate_keys() -> String {
         "pqopk_map": pqopk_map
     }).to_string();
     dump
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn sign_challenge(s_ik_sec: String, chal: String) -> String {
+    let mut csprg = StdRng::from_entropy();
+    let mut nonce: [u8; 64] = [0; 64];
+    csprg.fill_bytes(&mut nonce);
+
+    let mut ik_sec: [u8; 32] = [0; 32];
+    hex::decode_to_slice(s_ik_sec, &mut ik_sec).unwrap();
+
+    let signature = xeddsa::sign(ik_sec, chal.into_bytes(), nonce.to_vec());
+
+    hex::encode(signature)
 }
 
 /**

@@ -1,21 +1,21 @@
 pub mod diesel_models;
 pub mod http_models;
 pub mod schema;
+mod xeddsa;
 mod logger;
 
 #[tokio::main]
 async fn main() {
     let issuer = http_models::new_issuer();
     let users = http_models::Users::default();
+    let challenges = http_models::Challenges::default();
 
-    let api = filters::server(issuer, users);
+    let api = filters::server(issuer, challenges, users);
     
     warp::serve(api).run(([127, 0, 0, 1], 8080)).await;
 }
 
 mod filters {
-    use std::collections::HashMap;
-
     use serde::de::DeserializeOwned;
     use warp::Filter;
 
@@ -27,7 +27,7 @@ mod filters {
     };
 
     pub fn server(
-        iss: Issuer, users: Users
+        iss: Issuer, chal: Challenges, users: Users
     ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
         let users = warp::any().map(move || users.clone());
         let chat = warp::path("chat")
@@ -41,7 +41,8 @@ mod filters {
                 ws.on_upgrade(move |socket| handlers::chat(iss, tok, socket, users, chat_id))
             });
 
-        login(iss.clone())
+        login(iss.clone(), chal.clone())
+            .or(login_challenge(iss.clone(), chal.clone()))
             .or(register())
             .or(upload_keys(iss.clone()))
             .or(init_handshake(iss.clone()))
@@ -53,13 +54,27 @@ mod filters {
     }
 
     pub fn login(
-        iss: Issuer
+        iss: Issuer,
+        chal: Challenges
     ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
         warp::path!("login")
             .and(warp::post())
             .and(body::<LoginForm>())
             .and(with_auth(iss))
+            .and(with_challenges(chal))
             .and_then(handlers::login)
+    }
+
+    pub fn login_challenge(
+        iss: Issuer,
+        chal: Challenges
+    ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+        warp::path!("login")
+            .and(warp::put())
+            .and(with_challenges(chal))
+            .and(warp::header("challenge"))
+            .and(warp::header("signature"))
+            .and_then(handlers::login_challenge)
     }
 
     pub fn register() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
@@ -137,17 +152,22 @@ mod filters {
         warp::any().map(move || iss.clone())
     }
 
+    fn with_challenges(chal: Challenges) -> impl Filter<Extract = (Challenges,), Error = std::convert::Infallible> + Clone {
+        warp::any().map(move || chal.clone())
+    }
+
     fn body<T: std::marker::Send + DeserializeOwned>() -> impl Filter<Extract = (T,), Error = warp::Rejection> + Clone {
        warp::body::json()
     }
 }
 
 mod handlers {
+    use rand::distributions::{Alphanumeric, DistString};
     use futures_util::{SinkExt, StreamExt, TryFutureExt};
     use serde_json::json;
-    use tokio::sync::{mpsc, RwLock};
+    use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;
-    use diesel::{mysql::MysqlConnection, prelude::*, sql_query};
+    use diesel::{mysql::MysqlConnection, prelude::*};
     use warp::{filters::ws::{Message, WebSocket}, http::{Response, StatusCode}, hyper::Body};
     use argon2::{
         password_hash::{
@@ -159,9 +179,10 @@ mod handlers {
     use dotenvy::dotenv;
     use std::{collections::HashMap, env, time::{SystemTime, UNIX_EPOCH}};
 
-    use crate::{logger::{self, LogLevel}, schema::{chats, messages}};
 
     use super::{
+        logger::{self, LogLevel}, schema::{chats, messages},
+        xeddsa::verify,
         diesel_models::*,
         http_models::*,
         schema::{users, handshakes, perm_keys, onetime_keys, onetime_pqkem}
@@ -183,7 +204,7 @@ mod handlers {
     }
 
     pub async fn login(
-        info: LoginForm, iss: Issuer
+        info: LoginForm, iss: Issuer, chal: Challenges
     ) -> Result<impl warp::Reply, warp::Rejection> {
         use crate::schema::users::dsl::*;
 
@@ -209,24 +230,43 @@ mod handlers {
             return Ok(empty_response(StatusCode::UNAUTHORIZED));
         }
 
-        // Issue a jwt auth token
-        let token = iss.issue(user.id, &user.email);
+        // Check if keys have been uploaded
+        let (perms, need_upload) = match perm_keys::table
+            .filter(perm_keys::user_id.eq(user.id))
+            .select(PermKeys::as_select())
+            .get_result(conn) {
+                Ok(r) =>(Some(r), false),
+                Err(_) => (None, true)
+            };
+
+        // Issue a jwt auth token, can be overridden by next step
+        let mut head = iss.issue(user.id, &user.email);
         let sent = LoginComplete { 
             id: user.id, username: user.username.clone(), email: user.email.clone(), phone: user.phone.clone()
         };
         let response_body = serde_json::to_string(&sent).unwrap();
-
-        // Check if keys have been uploaded
-        let need_upload: bool = match perm_keys::table
-            .filter(perm_keys::user_id.eq(user.id))
-            .select(PermKeys::as_select())
-            .get_result(conn) {
-                Ok(_) => false,
-                Err(_) => true
-            };
+        
+        // If keys HAVE been uploaded, generate a random challenge
+        // and have the client make an additional PUT request
+        // with the signature for that challenge.
+        if !need_upload {
+            let perms: &PermKeys = &perms.unwrap();
+            let challenge: String = Alphanumeric.sample_string(&mut rand::thread_rng(), 32);
+            let mut user_ik: [u8; 32] = [0; 32];
+            hex::decode_to_slice(perms.ik.clone(), &mut user_ik).unwrap();
+            chal.write().await.insert(challenge.clone(), (user_ik, head.to_owned()));
+            head = challenge;
+        }
 
         let response = Response::builder()
-            .header("authorization", token)
+            .header(
+                if need_upload {
+                    "authorization"
+                } else {
+                    "challenge"
+                }, 
+                head.clone()
+            )
             .status(
                 if need_upload {
                     StatusCode::IM_A_TEAPOT
@@ -240,8 +280,38 @@ mod handlers {
         if need_upload {
             logger::log(LogLevel::Info, &format!("User {} is a teapot!", &info.email));
         } else {
-            logger::log(LogLevel::Info, &format!("User {} has logged in", &info.email));
+            logger::log(LogLevel::Info, &format!("User {} has initiated a challenge {}", &info.email, &head));
         }
+        Ok(response)
+    }
+
+    pub async fn login_challenge(
+        chal: Challenges, challenge: String, signature: String
+    ) -> Result<impl warp::Reply, warp::Rejection> {
+        let (user_ik, jwt) = match chal.read().await.get(&challenge) {
+            Some(ik) => (ik.0.clone(), ik.1.clone()),
+            None => return Ok(empty_response(StatusCode::BAD_REQUEST)),
+        };
+        let mut sig: [u8; 64] = [0; 64];
+        match hex::decode_to_slice(signature, &mut sig) {
+            Ok(_) => (),
+            Err(_) => return Ok(empty_response(StatusCode::BAD_REQUEST)),
+        };
+
+        let success = verify(user_ik, challenge.clone().into_bytes(), sig);
+        if !success {
+            return Ok(empty_response(StatusCode::UNAUTHORIZED))
+        }
+        logger::log(LogLevel::Info, &format!(
+            "Challenge {} has been completed", &challenge
+        ));
+
+        let response = Response::builder()
+            .header("authorization",jwt)
+            .status(StatusCode::OK)
+            .body(Body::empty())
+            .unwrap();
+
         Ok(response)
     }
 
