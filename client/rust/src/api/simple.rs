@@ -229,7 +229,6 @@ pub fn init_handshake(key_bundle: String, s_ik_pub: String, s_ik_sec: String) ->
     let b1 = xeddsa::verify(ik_b.clone(), spk_b.to_vec(), spk_b_sig);
     let b2 = xeddsa::verify(ik_b.clone(), pqpk_b.to_vec(), pqpk_b_sig);
     if !(b1 || b2) {
-        println!("NULL HERE");
         return None
     }
 
@@ -269,7 +268,6 @@ pub fn init_handshake(key_bundle: String, s_ik_pub: String, s_ik_sec: String) ->
     };
     let handshake = [nonce.to_vec(), cipher.encrypt(&nonce, payload).unwrap()].concat();
 
-    println!("{:?}", nonce.to_vec());
     // Convert all needed info into hex strings
     let s_ek_pub = hex::encode(ek_pub.as_bytes());
     let s_ct = hex::encode(ct);
@@ -368,7 +366,6 @@ pub fn complete_handshake(
 
 #[flutter_rust_bridge::frb(sync)]
 pub fn decrypt_message(s_sk: String, combined: Vec<u8>) -> String {
-    println!("{:?}", combined);
     let mut sk: [u8; 32] = [0; 32];
     hex::decode_to_slice(s_sk, &mut sk).unwrap();
 

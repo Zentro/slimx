@@ -36,7 +36,7 @@ class _HandshakeRequestScreenState extends State<HandshakeRequestScreen> {
   Future<void> _savePendingRequests(String email) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var token = prefs.getString('auth') ?? "";
-    var keys = jsonDecode(prefs.getString('keys') ?? "");
+    var userKeys = jsonDecode(prefs.getString('userKeys') ?? "");
     var currEmail = prefs.getString('currEmail') ?? "";
 
     // Save pending requests to SharedPreferences
@@ -53,23 +53,23 @@ class _HandshakeRequestScreenState extends State<HandshakeRequestScreen> {
     }
     
     var prekeyBundle = response.body;
-    var tup = await initHandshake(keyBundle: prekeyBundle, sIkPub: keys["ik_pub"], sIkSec: keys["ik_sec"]);
+    var tup = await initHandshake(keyBundle: prekeyBundle, sIkPub: userKeys["ik_pub"], sIkSec: userKeys["ik_sec"]);
     
     String filledHandshake = tup!.$1;
-    String secretKey = tup.$2;
+    String sk = tup.$2;
 
     // Save this secret key to their email then dump the result back locally
-    Map<String, String> secretKeys = Map.castFrom(jsonDecode(prefs.getString('secretKeys') ?? ""));
-    secretKeys[email] = secretKey;
-    print(secretKey);
+    Map<String, String> sharedKeys = Map.castFrom(jsonDecode(prefs.getString('sharedKeys') ?? ""));
+    sharedKeys[email] = sk;
 
-    File sharedFile = File(prefs.getString('sharedPath')!);
-    Map<String, String> sharedKeys = Map.castFrom(jsonDecode(sharedFile.readAsStringSync()));
-    sharedKeys[currEmail] = jsonEncode(secretKeys);
-    sharedFile.writeAsString(jsonEncode(sharedKeys));
+    // dump this back into the system
+    File sharedFile = File(prefs.getString('sharedFilePath')!);
+    Map<String, String> emailSharedKeys = Map.castFrom(jsonDecode(sharedFile.readAsStringSync()));
+    emailSharedKeys[currEmail] = jsonEncode(sharedKeys);
+    sharedFile.writeAsString(jsonEncode(emailSharedKeys));
 
     // Update our in memory prefs
-    prefs.setString('secretKeys', sharedKeys[currEmail]!);
+    prefs.setString('sharedKeys', emailSharedKeys[currEmail]!);
 
     // Send filled handshake back to the server
     final last = await AppHttpClient.put("handshakes", 

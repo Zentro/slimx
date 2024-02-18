@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:client/src/screens/auth/register_screen.dart';
 import 'package:client/src/screens/chat/chat_screen.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +10,7 @@ import 'package:client/src/providers/auth_provider.dart';
 import 'package:client/src/providers/app_support_directory_provider.dart';
 import 'package:client/src/screens/auth/login_screen.dart';
 import 'package:client/src/screens/chat/inbox_screen.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:platform/platform.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -37,6 +40,19 @@ Hostname: ${platform.localHostname}
 
   OpenAI.apiKey = 'nuhuh';
   OpenAI.showLogs = true;
+
+  // ONLY FOR DEBUG, REMOVES ALL KEYS ON SYSTEM
+  Directory appSupportDir = await getApplicationSupportDirectory();
+  var _appSupportDirectoryPath = appSupportDir.path;
+
+  String keysFilePath = '${appSupportDir.path}/userKeys.json';
+  String sharedFilePath = '${appSupportDir.path}/sharedKeys.json';
+
+  File keysFile = File(keysFilePath);
+  File sharedFile = File(sharedFilePath);
+
+  keysFile.delete();
+  sharedFile.delete();
 
   // todo: move this later
   SharedPreferences prefs = await SharedPreferences.getInstance();

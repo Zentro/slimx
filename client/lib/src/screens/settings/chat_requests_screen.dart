@@ -75,47 +75,47 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
     String? pqpkHash = handshake['pqpk_hash'];
     String? opkHash = handshake['opk_hash'];
 
-    Map<String, dynamic> keys = Map.castFrom(jsonDecode(prefs.getString('keys')!));
-    String sIkPub = keys['ik_pub'];
-    String sIkSec = keys['ik_sec']!;
-    String sSpkSec = keys['spk_sec']!;
+    Map<String, dynamic> userKeys = Map.castFrom(jsonDecode(prefs.getString('userKeys')!));
+    String sIkPub = userKeys['ik_pub'];
+    String sIkSec = userKeys['ik_sec']!;
+    String sSpkSec = userKeys['spk_sec']!;
     String sPqpkSec;
     String sOpkSec;
-
+    
     if (pqpkHash == null) {
-      sPqpkSec = keys['pqspk_sec']!;
+      sPqpkSec = userKeys['pqspk_sec']!;
     } else {
       // They used a key from you, need to delete it after using
-      keys['pqopk_map'] = Map.castFrom<String, dynamic, String, dynamic>(keys['pqopk_map']!);
-      sPqpkSec = keys['pqopk_map'][pqpkHash][0];
+      userKeys['pqopk_map'] = Map.castFrom<String, dynamic, String, dynamic>(userKeys['pqopk_map']!);
+      sPqpkSec = userKeys['pqopk_map'][pqpkHash][0];
 
-      keys['pqopk_map'].remove(pqpkHash);
+      userKeys['pqopk_map'].remove(pqpkHash);
     }
 
     if (opkHash == null) {
       sOpkSec = "";
     } else {
-      keys['opk_map'] = Map.castFrom<String, dynamic, String, dynamic>(keys['opk_map']!);
-      sOpkSec = keys['opk_map'][opkHash][0];
+      userKeys['opk_map'] = Map.castFrom<String, dynamic, String, dynamic>(userKeys['opk_map']!);
+      sOpkSec = userKeys['opk_map'][opkHash][0];
 
-      keys['opk_map'].remove(opkHash);
+      userKeys['opk_map'].remove(opkHash);
     }
 
     if (opkHash != null || pqpkHash != null) {
-      var encodedKeys = jsonEncode(keys);
-      prefs.setString('keys', encodedKeys);
+      var encodedKeys = jsonEncode(userKeys);
+      prefs.setString('userKeys', encodedKeys);
       
       // Dump it back into the system
-      File file = File(prefs.getString("filePath")!);
+      File keysFile = File(prefs.getString("keysFilePath")!);
       
-      var emailKeys = jsonDecode(file.readAsStringSync());
+      var emailKeys = jsonDecode(keysFile.readAsStringSync());
       var currEmail = prefs.getString('currEmail');
       emailKeys[currEmail!] = encodedKeys;
-      file.writeAsStringSync(jsonEncode(emailKeys));
+      keysFile.writeAsStringSync(jsonEncode(emailKeys));
       print("Dump complete");
     }
 
-    var secretKey = completeHandshake(
+    var sk = completeHandshake(
       handshake: response.body,
       sIkPub: sIkPub,
       sIkSec: sIkSec, 
@@ -124,16 +124,17 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
       sOpkSec: sOpkSec
     );
 
-    Map<String, String> secretKeys = Map.castFrom(jsonDecode(prefs.getString('secretKeys') ?? ""));
-    secretKeys[email] = await secretKey;
+    Map<String, String> sharedKeys = Map.castFrom(jsonDecode(prefs.getString('sharedKeys') ?? ""));
+    sharedKeys[email] = await sk;
 
-    File sharedFile = File(prefs.getString('sharedPath')!);
-    Map<String, String> sharedKeys = Map.castFrom(jsonDecode(sharedFile.readAsStringSync()));
-    sharedKeys[currEmail] = jsonEncode(secretKeys);
-    sharedFile.writeAsString(jsonEncode(sharedKeys));
+    File sharedFile = File(prefs.getString('sharedFilePath')!);
+    Map<String, String> emailSharedKeys = Map.castFrom(jsonDecode(sharedFile.readAsStringSync()));
+    emailSharedKeys[currEmail] = jsonEncode(sharedKeys);
+    sharedFile.writeAsString(jsonEncode(emailSharedKeys));
 
     // Update our in memory prefs
-    prefs.setString('secretKeys', sharedKeys[currEmail]!);
+    prefs.setString('sharedKeys', emailSharedKeys[currEmail]!);
+    print(emailSharedKeys[currEmail]);
 
     setState(() {
       _pendingRequests.removeWhere((request) => request['email'] == email);

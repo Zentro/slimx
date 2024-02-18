@@ -23,7 +23,7 @@ class _InboxScreen extends State<InboxScreen> {
   bool isLoading = true; // always true
   final String chatsUri = 'inbox';
   List<Map<String, dynamic>> data = [];
-  late Map<String, String> secretKeys;
+  late Map<String, String> sharedKeys;
   late String baseUrl;
 
   @override
@@ -42,21 +42,17 @@ class _InboxScreen extends State<InboxScreen> {
 
       final response = await AppHttpClient.get(chatsUri, headers: {
         "authorization": authToken,
-      } // add headers
-          );
+      });
 
-      print(response.body);
+      // print(response.body);
 
       if (response.statusCode == 200) {
         // If the server returns a 200 OK response, you can process the data here
         List<dynamic> initData = jsonDecode(response.body);
-        secretKeys = Map.castFrom(jsonDecode(prefs.getString('secretKeys') ?? ""));
+        print(prefs.getString('sharedKeys'));
+        sharedKeys = Map.castFrom(jsonDecode(prefs.getString('sharedKeys') ?? ""));
         baseUrl = prefs.getString('baseUrl')!;
-        // For example, you can print the data to the console
-        // print(initData);
         data = initData.map((e) => e as Map<String, dynamic>).toList();
-        // print(data);
-
       } else {
         print("NOT WORKING");
         // If the server returns an error response, throw an exception
@@ -143,7 +139,7 @@ class _InboxScreen extends State<InboxScreen> {
                             chatID: data[index]['chat_id'],
                             authToken: authToken,
                             fromUsername: data[index]['username'],
-                            sk: secretKeys[data[index]['email']]!,
+                            sk: sharedKeys[data[index]['email']]!,
                             baseUrl: baseUrl
                           )),
                 );

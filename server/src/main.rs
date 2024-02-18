@@ -72,7 +72,7 @@ mod filters {
         warp::path!("login")
             .and(warp::put())
             .and(with_challenges(chal))
-            .and(warp::header("challenge"))
+            .and(warp::header("email"))
             .and(warp::header("signature"))
             .and_then(handlers::login_challenge)
     }
@@ -254,7 +254,8 @@ mod handlers {
             let challenge: String = Alphanumeric.sample_string(&mut rand::thread_rng(), 32);
             let mut user_ik: [u8; 32] = [0; 32];
             hex::decode_to_slice(perms.ik.clone(), &mut user_ik).unwrap();
-            chal.write().await.insert(challenge.clone(), (user_ik, head.to_owned()));
+            // Stored as 'user.email': (user_ik, challenge, jwt)
+            chal.write().await.insert(user.email.clone(), (user_ik, challenge.clone(), head.to_owned()));
             head = challenge;
         }
 
@@ -280,32 +281,47 @@ mod handlers {
         if need_upload {
             logger::log(LogLevel::Info, &format!("User {} is a teapot!", &info.email));
         } else {
-            logger::log(LogLevel::Info, &format!("User {} has initiated a challenge {}", &info.email, &head));
+            logger::log(LogLevel::Info, &format!("User {} has initiated a challenge", &info.email));
         }
         Ok(response)
     }
 
     pub async fn login_challenge(
-        chal: Challenges, challenge: String, signature: String
+        chal: Challenges, email: String, signature: String
     ) -> Result<impl warp::Reply, warp::Rejection> {
-        let (user_ik, jwt) = match chal.read().await.get(&challenge) {
-            Some(ik) => (ik.0.clone(), ik.1.clone()),
+        let (user_ik, challenge, jwt) = match chal.read().await.get(&email) {
+            Some(res) => (res.0.clone(), res.1.clone(), res.2.clone()),
             None => return Ok(empty_response(StatusCode::BAD_REQUEST)),
         };
         let mut sig: [u8; 64] = [0; 64];
-        match hex::decode_to_slice(signature, &mut sig) {
+        match hex::decode_to_slice(signature.clone(), &mut sig) {
             Ok(_) => (),
-            Err(_) => return Ok(empty_response(StatusCode::BAD_REQUEST)),
+            Err(_) => {
+                logger::log(LogLevel::Info, &format!(
+                    "User {} sent a malformed signature", &email
+                ));
+                chal.write().await.remove(&email).unwrap();
+                return Ok(empty_response(StatusCode::BAD_REQUEST))
+            },
         };
 
+        println!("{}", signature);
+
         let success = verify(user_ik, challenge.clone().into_bytes(), sig);
+        // Signature verification failed
         if !success {
+            logger::log(LogLevel::Info, &format!(
+                "User {} lacks the correct key", &email
+            ));
+            chal.write().await.remove(&email).unwrap();
             return Ok(empty_response(StatusCode::UNAUTHORIZED))
         }
         logger::log(LogLevel::Info, &format!(
-            "Challenge {} has been completed", &challenge
+            "User {} has been completed the challenge", &email
         ));
 
+        // Signature verification succeeded
+        chal.write().await.remove(&email).unwrap();
         let response = Response::builder()
             .header("authorization",jwt)
             .status(StatusCode::OK)

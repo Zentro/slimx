@@ -1,11 +1,8 @@
 import 'package:client/src/rust/api/simple.dart';
-import 'package:client/src/rust/api/xeddsa.dart';
 import 'package:client/src/user.dart';
 import 'package:flutter/material.dart';
 import 'package:client/src/app_http_client.dart';
-// import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// import 'package:background_fetch/background_fetch.dart';
 import 'package:client/src/app_logger.dart';
 import 'dart:convert';
 
@@ -57,10 +54,11 @@ class AuthProvider extends ChangeNotifier {
         SharedPreferences prefs = await SharedPreferences.getInstance();
         String? token = loginResponse.headers['authorization'];
 
+        // Upload your keys
         if (loginResponse.statusCode == 418) {
           await supportProvider.setGlobalKeyValues(email, true);
-          var keys = prefs.getString('keys');
-          var requestForm = await signAndPublish(keyJson: keys ?? "");
+          var userKeys = prefs.getString('userKeys');
+          var requestForm = await signAndPublish(keyJson: userKeys ?? "");
           
           final keyUploadResponse = await AppHttpClient.post(
             'keys',
@@ -73,15 +71,25 @@ class AuthProvider extends ChangeNotifier {
           print(keyUploadResponse.statusCode);
         }
 
+        // Need to complete challenge
         if (loginResponse.statusCode == 200) {
           await supportProvider.setGlobalKeyValues(email, false);
-          String? temp = prefs.getString('keys');
+          String? temp = prefs.getString('userKeys');
           if (temp == null) {
+            await AppHttpClient.put(
+              'login',
+              body: "",
+              headers: {
+                'email': email,
+                'signature': ""
+              }
+            );
             throw Exception("Keys are on the server for this account but is not locally available");
           } 
           // Complete the challenge
-          var keys = jsonDecode(temp);
-          var ik_sec = keys['ik_sec'];
+          var userKeys = jsonDecode(temp);
+          var ik_sec = userKeys['ik_sec'];
+          print(ik_sec);
           final String challenge = loginResponse.headers['challenge'] ?? "";
           final String signature = signChallenge(sIkSec: ik_sec, chal: challenge);
 
@@ -89,7 +97,7 @@ class AuthProvider extends ChangeNotifier {
             'login',
             body: "",
             headers: {
-              'challenge': challenge,
+              'email': email,
               'signature': signature
             }
           );
@@ -97,7 +105,7 @@ class AuthProvider extends ChangeNotifier {
           if (challengeResponse.statusCode != 200) {
             throw Exception('Unable to complete challenge. Local keys do not match the server keys.');
           }
-
+          print("Challenge completed");
           token = challengeResponse.headers['authorization'];
         }
 
@@ -167,7 +175,16 @@ class AuthProvider extends ChangeNotifier {
         'Authorization': authHeaderValue ?? '',
       },
     );
-    prefs.setString('auth', '');
+    for (Future<bool> res in {
+      prefs.remove('auth'),
+      prefs.remove('userKeys'),
+      prefs.remove('keysFilePath'),
+      prefs.remove('sharedKeys'),
+      prefs.remove('sharedFilePath'),
+      prefs.remove('currEmail'),
+    }) {
+      await res;
+    }
     notifyListeners();
   }
 }
