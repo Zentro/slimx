@@ -3,11 +3,10 @@ import 'dart:io';
 import 'package:client/src/screens/auth/register_screen.dart';
 import 'package:client/src/screens/chat/chat_screen.dart';
 import 'package:flutter/material.dart';
-// import 'package:client/src/rust/api/simple.dart';
 import 'package:client/src/rust/frb_generated.dart';
 import 'package:client/src/app_logger.dart';
 import 'package:client/src/providers/auth_provider.dart';
-import 'package:client/src/providers/app_support_directory_provider.dart';
+import 'package:client/src/providers/key_provider.dart';
 import 'package:client/src/screens/auth/login_screen.dart';
 import 'package:client/src/screens/chat/inbox_screen.dart';
 import 'package:path_provider/path_provider.dart';
@@ -57,7 +56,7 @@ Hostname: ${platform.localHostname}
   // todo: move this later
   SharedPreferences prefs = await SharedPreferences.getInstance();
   await prefs.clear();
-  const String baseUrl = "10.147.17.151";
+  const String baseUrl = "127.0.0.1";
   prefs.setString('baseUrl', baseUrl);
   prefs.setString('apiUrl', 'http://$baseUrl:8080');
 
@@ -66,7 +65,7 @@ Hostname: ${platform.localHostname}
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => AppSupportDirectoryProvider())
+        ChangeNotifierProvider(create: (_) => KeyProvider())
       ],
       child: const App(),
     ),
@@ -89,7 +88,7 @@ class App extends StatelessWidget {
         '/register': (context) => const RegisterScreen(),
       },
       theme: ThemeData(brightness: isDark ? Brightness.dark : Brightness.light),
-      home: Consumer2<AuthProvider, AppSupportDirectoryProvider>(
+      home: Consumer2<AuthProvider, KeyProvider>(
         builder: (context, authProvider, appSupportDirectoryProvider, _) {
           return authProvider.getAuthState
               ? const InboxScreen()

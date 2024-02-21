@@ -12,7 +12,7 @@ async fn main() {
 
     let api = filters::server(issuer, challenges, users);
     
-    warp::serve(api).run(([10, 147, 17, 151], 8080)).await;
+    warp::serve(api).run(([127, 0, 0, 1], 8080)).await;
 }
 
 mod filters {
@@ -304,8 +304,6 @@ mod handlers {
                 return Ok(empty_response(StatusCode::BAD_REQUEST))
             },
         };
-
-        println!("{}", signature);
 
         let success = verify(user_ik, challenge.clone().into_bytes(), sig);
         // Signature verification failed

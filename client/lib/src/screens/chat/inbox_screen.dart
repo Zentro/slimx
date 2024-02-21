@@ -1,5 +1,6 @@
 import 'package:client/src/app_http_client.dart';
 import 'package:client/src/providers/auth_provider.dart';
+import 'package:client/src/providers/key_provider.dart';
 import 'package:client/src/screens/auth/login_screen.dart';
 import 'package:client/src/screens/chat/ai_assistant_screen.dart';
 import 'package:client/src/screens/chat/floating_action_button.dart';
@@ -9,6 +10,7 @@ import 'package:client/src/screens/settings/handshake_request_screen.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:client/src/screens/chat/chat_screen.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class InboxScreen extends StatefulWidget {
@@ -23,7 +25,6 @@ class _InboxScreen extends State<InboxScreen> {
   bool isLoading = true; // always true
   final String chatsUri = 'inbox';
   List<Map<String, dynamic>> data = [];
-  late Map<String, String> sharedKeys;
   late String baseUrl;
 
   @override
@@ -44,13 +45,9 @@ class _InboxScreen extends State<InboxScreen> {
         "authorization": authToken,
       });
 
-      // print(response.body);
-
       if (response.statusCode == 200) {
         // If the server returns a 200 OK response, you can process the data here
         List<dynamic> initData = jsonDecode(response.body);
-        print(prefs.getString('sharedKeys'));
-        sharedKeys = Map.castFrom(jsonDecode(prefs.getString('sharedKeys') ?? ""));
         baseUrl = prefs.getString('baseUrl')!;
         data = initData.map((e) => e as Map<String, dynamic>).toList();
       } else {
@@ -108,7 +105,10 @@ class _InboxScreen extends State<InboxScreen> {
             icon: const Icon(Icons.logout_outlined),
             tooltip: 'Log out',
             onPressed: () {
-              AuthProvider().logout();
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              final keyProvider = Provider.of<KeyProvider>(context, listen: false);
+              authProvider.logout();
+              keyProvider.logout();
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -132,6 +132,7 @@ class _InboxScreen extends State<InboxScreen> {
               trailing:
                   Text('2h ago'), // You can use a more complex widget here
               onTap: () {
+                final keyProvider = Provider.of<KeyProvider>(context, listen: false);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -139,7 +140,7 @@ class _InboxScreen extends State<InboxScreen> {
                             chatID: data[index]['chat_id'],
                             authToken: authToken,
                             fromUsername: data[index]['username'],
-                            sk: sharedKeys[data[index]['email']]!,
+                            sk: keyProvider.getSharedKey(data[index]['email']),
                             baseUrl: baseUrl
                           )),
                 );

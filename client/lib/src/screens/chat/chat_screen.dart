@@ -5,7 +5,6 @@ import 'dart:typed_data';
 
 import 'package:client/src/rust/api/simple.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 

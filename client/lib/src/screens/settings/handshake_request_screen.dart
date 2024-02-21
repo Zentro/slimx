@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:client/src/app_http_client.dart';
+import 'package:client/src/providers/key_provider.dart';
 import 'package:client/src/rust/api/simple.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HandshakeRequestScreen extends StatefulWidget {
@@ -33,11 +35,9 @@ class _HandshakeRequestScreenState extends State<HandshakeRequestScreen> {
   //   // Load pending requests from SharedPreferences
   // }
 
-  Future<void> _savePendingRequests(String email) async {
+  Future<void> _savePendingRequests(String email, KeyProvider keyProvider) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var token = prefs.getString('auth') ?? "";
-    var userKeys = jsonDecode(prefs.getString('userKeys') ?? "");
-    var currEmail = prefs.getString('currEmail') ?? "";
 
     // Save pending requests to SharedPreferences
     final response = await AppHttpClient.post(
@@ -53,23 +53,13 @@ class _HandshakeRequestScreenState extends State<HandshakeRequestScreen> {
     }
     
     var prekeyBundle = response.body;
-    var tup = await initHandshake(keyBundle: prekeyBundle, sIkPub: userKeys["ik_pub"], sIkSec: userKeys["ik_sec"]);
+    var tup = await initHandshake(keyBundle: prekeyBundle, sIkPub: keyProvider.ikPub, sIkSec: keyProvider.ikSec);
     
     String filledHandshake = tup!.$1;
     String sk = tup.$2;
 
-    // Save this secret key to their email then dump the result back locally
-    Map<String, String> sharedKeys = Map.castFrom(jsonDecode(prefs.getString('sharedKeys') ?? ""));
-    sharedKeys[email] = sk;
-
-    // dump this back into the system
-    File sharedFile = File(prefs.getString('sharedFilePath')!);
-    Map<String, String> emailSharedKeys = Map.castFrom(jsonDecode(sharedFile.readAsStringSync()));
-    emailSharedKeys[currEmail] = jsonEncode(sharedKeys);
-    sharedFile.writeAsString(jsonEncode(emailSharedKeys));
-
-    // Update our in memory prefs
-    prefs.setString('sharedKeys', emailSharedKeys[currEmail]!);
+    // Save this secret key to their email
+    await keyProvider.setSharedKey(email, sk);
 
     // Send filled handshake back to the server
     final last = await AppHttpClient.put("handshakes", 
@@ -80,10 +70,6 @@ class _HandshakeRequestScreenState extends State<HandshakeRequestScreen> {
     body: jsonDecode(filledHandshake));
 
     print(last.statusCode);
-  }
-
-  void _addRequest(String email) {
-    _savePendingRequests(email);
   }
 
   @override
@@ -103,7 +89,8 @@ class _HandshakeRequestScreenState extends State<HandshakeRequestScreen> {
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.send),
                   onPressed: () {
-                    _addRequest(_emailController.text);
+                    final keyProvider = Provider.of<KeyProvider>(context, listen: false);
+                    _savePendingRequests(_emailController.text, keyProvider);
                     _emailController.clear();
                   },
                 ),

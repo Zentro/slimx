@@ -2,8 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:client/src/app_http_client.dart';
+import 'package:client/src/keys.dart';
+import 'package:client/src/providers/key_provider.dart';
 import 'package:client/src/rust/api/simple.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ChatRequestScreen extends StatefulWidget {
@@ -54,10 +57,9 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
     }
   }
 
-  Future<void> _acceptRequest(String email, int handshake_id) async {
+  Future<void> _acceptRequest(String email, int handshake_id, KeyProvider keyProvider) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var token = prefs.getString('auth') ?? "";
-    var currEmail = prefs.getString('currEmail') ?? "";
     print(handshake_id);
     final response = await AppHttpClient.post(
       'complete',
@@ -75,47 +77,28 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
     String? pqpkHash = handshake['pqpk_hash'];
     String? opkHash = handshake['opk_hash'];
 
-    Map<String, dynamic> userKeys = Map.castFrom(jsonDecode(prefs.getString('userKeys')!));
-    String sIkPub = userKeys['ik_pub'];
-    String sIkSec = userKeys['ik_sec']!;
-    String sSpkSec = userKeys['spk_sec']!;
+    String sIkPub = keyProvider.ikPub;
+    String sIkSec = keyProvider.ikSec;
+    String sSpkSec = keyProvider.spkSec;
     String sPqpkSec;
     String sOpkSec;
     
     if (pqpkHash == null) {
-      sPqpkSec = userKeys['pqspk_sec']!;
+      sPqpkSec = keyProvider.pqspkSec;
     } else {
       // They used a key from you, need to delete it after using
-      userKeys['pqopk_map'] = Map.castFrom<String, dynamic, String, dynamic>(userKeys['pqopk_map']!);
-      sPqpkSec = userKeys['pqopk_map'][pqpkHash][0];
-
-      userKeys['pqopk_map'].remove(pqpkHash);
+      var pqopkPair = await keyProvider.popPqopkPair(pqpkHash);
+      sPqpkSec = pqopkPair.$1;
     }
 
     if (opkHash == null) {
       sOpkSec = "";
     } else {
-      userKeys['opk_map'] = Map.castFrom<String, dynamic, String, dynamic>(userKeys['opk_map']!);
-      sOpkSec = userKeys['opk_map'][opkHash][0];
-
-      userKeys['opk_map'].remove(opkHash);
+      var opkPair = await keyProvider.popOpkPair(opkHash);
+      sOpkSec = opkPair.$1;
     }
-
-    if (opkHash != null || pqpkHash != null) {
-      var encodedKeys = jsonEncode(userKeys);
-      prefs.setString('userKeys', encodedKeys);
-      
-      // Dump it back into the system
-      File keysFile = File(prefs.getString("keysFilePath")!);
-      
-      var emailKeys = jsonDecode(keysFile.readAsStringSync());
-      var currEmail = prefs.getString('currEmail');
-      emailKeys[currEmail!] = encodedKeys;
-      keysFile.writeAsStringSync(jsonEncode(emailKeys));
-      print("Dump complete");
-    }
-
-    var sk = completeHandshake(
+    
+    var sk = await completeHandshake(
       handshake: response.body,
       sIkPub: sIkPub,
       sIkSec: sIkSec, 
@@ -124,17 +107,7 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
       sOpkSec: sOpkSec
     );
 
-    Map<String, String> sharedKeys = Map.castFrom(jsonDecode(prefs.getString('sharedKeys') ?? ""));
-    sharedKeys[email] = await sk;
-
-    File sharedFile = File(prefs.getString('sharedFilePath')!);
-    Map<String, String> emailSharedKeys = Map.castFrom(jsonDecode(sharedFile.readAsStringSync()));
-    emailSharedKeys[currEmail] = jsonEncode(sharedKeys);
-    sharedFile.writeAsString(jsonEncode(emailSharedKeys));
-
-    // Update our in memory prefs
-    prefs.setString('sharedKeys', emailSharedKeys[currEmail]!);
-    print(emailSharedKeys[currEmail]);
+    keyProvider.setSharedKey(email, sk);
 
     setState(() {
       _pendingRequests.removeWhere((request) => request['email'] == email);
@@ -166,7 +139,11 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
                           icon: const Icon(Icons.check),
                           onPressed: () {
                             // Handle accepting the chat request
-                            _acceptRequest(_pendingRequests[index]["email"], _pendingRequests[index]["handshake_id"]);
+                            final keyProvider = Provider.of<KeyProvider>(context, listen: false);
+                            _acceptRequest(
+                              _pendingRequests[index]["email"], 
+                              _pendingRequests[index]["handshake_id"],
+                              keyProvider);
                           },
                         ),
                         IconButton(

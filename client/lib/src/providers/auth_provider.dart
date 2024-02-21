@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:client/src/app_logger.dart';
 import 'dart:convert';
 
-import 'app_support_directory_provider.dart';
+import 'key_provider.dart';
 
 class AuthProvider extends ChangeNotifier {
   bool _isLoggedIn = false; // The no-no variable
@@ -34,7 +34,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // Provide an asynchronous function to handle user login
-  Future<User> login(String email, String password, AppSupportDirectoryProvider supportProvider) async {
+  Future<User> login(String email, String password, KeyProvider keyProvider) async {
     // The 'async' keyword allows for asynchronous operations within the
     // function body
     try {
@@ -56,9 +56,10 @@ class AuthProvider extends ChangeNotifier {
 
         // Upload your keys
         if (loginResponse.statusCode == 418) {
-          await supportProvider.setGlobalKeyValues(email, true);
-          var userKeys = prefs.getString('userKeys');
-          var requestForm = await signAndPublish(keyJson: userKeys ?? "");
+          await keyProvider.generateKeysForEmail(email);
+          await keyProvider.setGlobalKeyValues(email);
+          print(keyProvider.keysJson);
+          var requestForm = await signAndPublish(keyJson: keyProvider.keysJson);
           
           final keyUploadResponse = await AppHttpClient.post(
             'keys',
@@ -73,9 +74,7 @@ class AuthProvider extends ChangeNotifier {
 
         // Need to complete challenge
         if (loginResponse.statusCode == 200) {
-          await supportProvider.setGlobalKeyValues(email, false);
-          String? temp = prefs.getString('userKeys');
-          if (temp == null) {
+          if (!await keyProvider.setGlobalKeyValues(email)) {
             await AppHttpClient.put(
               'login',
               body: "",
@@ -85,13 +84,12 @@ class AuthProvider extends ChangeNotifier {
               }
             );
             throw Exception("Keys are on the server for this account but is not locally available");
-          } 
+          }
           // Complete the challenge
-          var userKeys = jsonDecode(temp);
-          var ik_sec = userKeys['ik_sec'];
-          print(ik_sec);
-          final String challenge = loginResponse.headers['challenge'] ?? "";
-          final String signature = signChallenge(sIkSec: ik_sec, chal: challenge);
+          var ikSec = keyProvider.ikSec;
+
+          final String challenge = loginResponse.headers['challenge']!;
+          final String signature = signChallenge(sIkSec: ikSec, chal: challenge);
 
           final challengeResponse = await AppHttpClient.put(
             'login',
@@ -110,6 +108,8 @@ class AuthProvider extends ChangeNotifier {
         }
 
         prefs.setString('auth', token!);
+        prefs.setString('currEmail', email);
+      
         final Map<String, dynamic> responseData = json.decode(loginResponse.body);
         final User user = User.fromJson(responseData);
 
@@ -175,16 +175,9 @@ class AuthProvider extends ChangeNotifier {
         'Authorization': authHeaderValue ?? '',
       },
     );
-    for (Future<bool> res in {
-      prefs.remove('auth'),
-      prefs.remove('userKeys'),
-      prefs.remove('keysFilePath'),
-      prefs.remove('sharedKeys'),
-      prefs.remove('sharedFilePath'),
-      prefs.remove('currEmail'),
-    }) {
-      await res;
-    }
+    
+    await prefs.remove('auth');
+    await prefs.remove('currEmail');
     notifyListeners();
   }
 }
