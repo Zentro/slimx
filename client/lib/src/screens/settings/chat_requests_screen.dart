@@ -87,17 +87,17 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
       sPqpkSec = keyProvider.pqspkSec;
     } else {
       // They used a key from you, need to delete it after using
-      var pqopkPair = await keyProvider.popPqopkPair(pqpkHash);
+      var pqopkPair = keyProvider.popPqopkPair(pqpkHash);
       sPqpkSec = pqopkPair.$1;
     }
 
     if (opkHash == null) {
       sOpkSec = "";
     } else {
-      var opkPair = await keyProvider.popOpkPair(opkHash);
+      var opkPair = keyProvider.popOpkPair(opkHash);
       sOpkSec = opkPair.$1;
     }
-    
+
     var sk = await completeHandshake(
       handshake: response.body,
       sIkPub: sIkPub,
