@@ -1,8 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:client/src/app_http_client.dart';
-import 'package:client/src/keys.dart';
 import 'package:client/src/providers/key_provider.dart';
 import 'package:client/src/rust/api/simple.dart';
 import 'package:flutter/material.dart';

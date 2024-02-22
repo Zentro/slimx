@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:client/src/app_http_client.dart';
 import 'package:client/src/providers/key_provider.dart';

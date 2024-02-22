@@ -771,6 +771,9 @@ mod handlers {
             // Otherwise, store until the next time they retrieve it.
             match &users.read().await.get(&other) {
                 Some(other_ws_tx) => {
+                    logger::log(LogLevel::Debug, &format!(
+                        "Sending directly to other user"
+                    ));
                     let isMe = false;
                     let other_send = [MessageDetails {created, sender: sender.clone(), isMe, msg: msg.text.clone()}];
                     other_ws_tx.send(Message::text(serde_json::to_string(&other_send).unwrap()))
@@ -779,6 +782,9 @@ mod handlers {
                         });
                 },
                 None => {
+                    logger::log(LogLevel::Debug, &format!(
+                        "Other user not in chat room, saving to send later"
+                    ));
                     diesel::insert_into(messages::table)
                     .values(new_msg)
                     .execute(conn).unwrap();
@@ -793,7 +799,9 @@ mod handlers {
 
             
         }
-        println!("done sending");
+        logger::log(LogLevel::Info, &format!(
+            "User {} has left chat_id {}", payload.sub, chat_id
+        ));
 
         users.write().await.remove(&payload.sub_id);
     }

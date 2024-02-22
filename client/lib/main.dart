@@ -1,6 +1,5 @@
 import 'package:client/src/providers/chat_provider.dart';
 import 'package:client/src/screens/auth/register_screen.dart';
-import 'package:client/src/screens/chat/chat_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:client/src/rust/frb_generated.dart';
 import 'package:client/src/app_logger.dart';

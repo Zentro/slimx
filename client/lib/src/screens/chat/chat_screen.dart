@@ -1,7 +1,4 @@
 import 'dart:convert';
-import 'dart:ffi';
-import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:client/src/providers/chat_provider.dart';
 import 'package:client/src/rust/api/simple.dart';
@@ -32,16 +29,15 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  late WebSocketChannel channel;
-  late Stream<dynamic> stream;
-  bool history = false;
+  late WebSocketChannel _channel;
+  late Stream<dynamic> _stream;
   final List<RawMessage> _messages = [];
   final TextEditingController _textController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    stream = _joinChat().asStream();
+    _stream = _joinChat().asStream();
   }
 
   Future<void> _joinChat() async {
@@ -56,7 +52,6 @@ class _ChatScreenState extends State<ChatScreen> {
           ));
     }
     setState(() {
-      history = true;
       _connectToWebSocket();
     });
   }
@@ -65,11 +60,11 @@ class _ChatScreenState extends State<ChatScreen> {
     Map<String, dynamic> headers = {
       'authorization': widget.authToken,
     };
-    channel = IOWebSocketChannel.connect(
+    _channel = IOWebSocketChannel.connect(
       'ws://${widget.baseUrl}:8080/chat/${widget.chatID}',
       headers: headers,
     );
-    stream = channel.stream;
+    _stream = _channel.stream;
   }
 
   @override
@@ -82,13 +77,13 @@ class _ChatScreenState extends State<ChatScreen> {
         children: <Widget>[
           Flexible(
             child: StreamBuilder(
-              stream: stream,
+              stream: _stream,
               builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
                 if (snapshot.hasError) {
                   return Text('Error: ${snapshot.error}');
                 }
 
-                if (snapshot.connectionState == ConnectionState.waiting || !history) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
                     child: CircularProgressIndicator(),
                   );
@@ -158,13 +153,13 @@ class _ChatScreenState extends State<ChatScreen> {
     _textController.clear();
     var ct = encryptMessage(sSk: widget.sk, msg: text);
     Map<String, dynamic> message = {"text": ct, "sender": 'Me', "isMe": true};
-    channel.sink.add(jsonEncode(message));
+    _channel.sink.add(jsonEncode(message));
   }
 
   @override
   void dispose() {
     // Close WebSocket connection when disposing the widget
-    channel.sink.close();
+    _channel.sink.close();
     widget.chatProvider.leaveChat();
     super.dispose();
   }

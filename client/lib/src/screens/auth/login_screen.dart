@@ -1,12 +1,9 @@
-import 'dart:io';
 import 'package:client/src/app_logger.dart';
 import 'package:client/src/providers/chat_provider.dart';
 import 'package:client/src/providers/key_provider.dart';
 import 'package:client/src/screens/chat/inbox_screen.dart';
 import 'package:client/src/user.dart';
 import 'package:flutter/material.dart';
-import 'package:isar/isar.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:responsive_builder/responsive_builder.dart';
 import 'package:client/src/screens/auth/register_screen.dart';
 import 'package:provider/provider.dart';
@@ -67,11 +64,21 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildDesktopScreen() {
     return TextButton(
       onPressed: () {
-        final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-        final keyProvider = Provider.of<KeyProvider>(context, listen: false);
-        chatProvider.debugCLEAR();
-        keyProvider.debugCLEAR();
-        AppLogger.instance.i("Local database has been reset");
+        try {
+          final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+          final keyProvider = Provider.of<KeyProvider>(context, listen: false);
+          chatProvider.debugCLEAR();
+          keyProvider.debugCLEAR();
+          setState(() {
+            const snackBar = SnackBar(
+              content: Text("Local databse has been reset"),
+              duration: Duration(seconds: 3),
+            );
+            ScaffoldMessenger.of(context).showSnackBar(snackBar);
+          });
+        } catch (e) {
+          _showError(e.toString());
+        }
       },
       child: const Text('Delete all stored data'),
     );
