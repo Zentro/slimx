@@ -78,9 +78,16 @@ class ChatProvider extends ChangeNotifier {
       toAdd.add(newMessage);
     }
 
-     _isar.writeTxnSync(() {
-     _isar.messages.putAllSync(toAdd);
+    _isar.writeTxnSync(() {
+      _isar.messages.putAllSync(toAdd);
     });
     return true;
+  }
+
+  /// Clears everything in the database.
+  void debugCLEAR() {
+    _isar.writeTxnSync(() {
+      _isar.clearSync();
+    });
   }
 }

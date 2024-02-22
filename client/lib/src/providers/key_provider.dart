@@ -161,4 +161,13 @@ class KeyProvider extends ChangeNotifier {
     emailKeys[currEmail] = jsonEncode(_userKeys);
     keysFile.writeAsStringSync(jsonEncode(emailKeys));
   }
+
+  /// A function for easy debugging. Clears all stored data regarding keys.
+  void debugCLEAR() {
+    File keysFile = File(_keysFilePath);
+    File sharedFile = File(_sharedFilePath);
+
+    keysFile.writeAsStringSync(jsonEncode(<String, String>{}));
+    sharedFile.writeAsString(jsonEncode(<String, String>{}));
+  }
 }
