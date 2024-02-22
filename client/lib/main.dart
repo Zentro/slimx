@@ -1,3 +1,4 @@
+import 'package:client/src/providers/chat_provider.dart';
 import 'package:client/src/screens/auth/register_screen.dart';
 import 'package:client/src/screens/chat/chat_screen.dart';
 import 'package:flutter/material.dart';
@@ -49,7 +50,8 @@ Hostname: ${platform.localHostname}
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => KeyProvider())
+        ChangeNotifierProvider(create: (_) => KeyProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider())
       ],
       child: const App(),
     ),
@@ -72,8 +74,8 @@ class App extends StatelessWidget {
         '/register': (context) => const RegisterScreen(),
       },
       theme: ThemeData(brightness: isDark ? Brightness.dark : Brightness.light),
-      home: Consumer2<AuthProvider, KeyProvider>(
-        builder: (context, authProvider, appSupportDirectoryProvider, _) {
+      home: Consumer3<AuthProvider, KeyProvider, ChatProvider>(
+        builder: (context, authProvider, keyProvider, chatProvider,_) {
           return authProvider.getAuthState
               ? const InboxScreen()
               : const LoginScreen();

@@ -688,9 +688,11 @@ mod handlers {
             .load(conn)
             .unwrap();
 
-        // Query for all messages in this chat...
+        let other: u64 = if payload.sub_id == chat.a {chat.b} else {chat.a};
+
+        // Query for all missed messages in this chat...
         let messages: Vec<crate::diesel_models::Message> = messages::table
-            .filter(messages::chat_id.eq(chat_id))
+            .filter(messages::chat_id.eq(chat_id).and(messages::user_id.eq(other)))
             .order(messages::created.asc())
             .select(crate::diesel_models::Message::as_select())
             .load(conn)
@@ -718,6 +720,9 @@ mod handlers {
                 eprintln!("websocket send error: {}", e);
             })
             .await;
+        
+        // Delete these messages from the server
+        diesel::delete(messages::table.filter(messages::chat_id.eq(chat_id).and(messages::user_id.eq(other)))).execute(conn).unwrap();
 
         // Officially add yourself to the users list
         tokio::task::spawn(async move {
@@ -732,7 +737,6 @@ mod handlers {
         });
         users.write().await.insert(payload.sub_id, tx.clone());
 
-        let other: u64 = if payload.sub_id == chat.a {chat.b} else {chat.a};
         
         // Listen for user's messages and broadcast to the other user if they are 
         // connnected
@@ -755,9 +759,6 @@ mod handlers {
                 chat_id,
                 msg: msg.text.clone(),
             };
-            diesel::insert_into(messages::table)
-                .values(new_msg)
-                .execute(conn).unwrap();
             let sender: String = 
                 if payload.sub_id == members[0].id {
                     members[0].username.clone()
@@ -765,6 +766,24 @@ mod handlers {
                     members[1].username.clone()
                 };
             let created = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            // Check if other is currently connected in the users list.
+            // If they are, directly send it to them.
+            // Otherwise, store until the next time they retrieve it.
+            match &users.read().await.get(&other) {
+                Some(other_ws_tx) => {
+                    let isMe = false;
+                    let other_send = [MessageDetails {created, sender: sender.clone(), isMe, msg: msg.text.clone()}];
+                    other_ws_tx.send(Message::text(serde_json::to_string(&other_send).unwrap()))
+                        .unwrap_or_else(|e| {
+                            eprintln!("websocket send error: {}", e);
+                        });
+                },
+                None => {
+                    diesel::insert_into(messages::table)
+                    .values(new_msg)
+                    .execute(conn).unwrap();
+                },
+            }
             let isMe = true;
             let to_sendback = [MessageDetails {created, sender: sender.clone(), isMe, msg: msg.text.clone()}];
             tx.send(Message::text(serde_json::to_string(&to_sendback).unwrap()))
@@ -772,18 +791,7 @@ mod handlers {
                     eprintln!("websocket send error: {}", e);
                 });
 
-            // Check if other is currently connected in the users list
-            match &users.read().await.get(&other) {
-                Some(other_ws_tx) => {
-                    let isMe: bool = false;
-                    let other_send = [MessageDetails {created, sender, isMe, msg: msg.text.clone()}];
-                    other_ws_tx.send(Message::text(serde_json::to_string(&other_send).unwrap()))
-                        .unwrap_or_else(|e| {
-                            eprintln!("websocket send error: {}", e);
-                        });
-                },
-                None => (),
-            }
+            
         }
         println!("done sending");
 
@@ -815,7 +823,7 @@ mod handlers {
                     .unwrap();
                 to_ret.push(json!({
                     "username": other.username,
-                    "chat_id": chat.id.to_string(),
+                    "chat_id": chat.id,
                     "email": other.email
                 }));
             } else {
@@ -826,7 +834,7 @@ mod handlers {
                     .unwrap();
                 to_ret.push(json!({
                     "username": other.username,
-                    "chat_id": chat.id.to_string(),
+                    "chat_id": chat.id,
                     "email": other.email
                 }));
             }

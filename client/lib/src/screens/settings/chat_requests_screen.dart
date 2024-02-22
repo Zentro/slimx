@@ -37,8 +37,7 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
     final response = await AppHttpClient.get(
       'pending',
       headers: {
-        "authorization": token,
-        //"email": email,
+        "authorization": token
       },
     );
 

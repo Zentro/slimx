@@ -3,17 +3,19 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:client/src/providers/chat_provider.dart';
 import 'package:client/src/rust/api/simple.dart';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class ChatScreen extends StatefulWidget {
-  final String chatID;
+  final int chatID;
   final String authToken;
   final String fromUsername;
   final String sk;
   final String baseUrl;
+  final ChatProvider chatProvider;
 
   const ChatScreen(
       {Key? key,
@@ -21,7 +23,8 @@ class ChatScreen extends StatefulWidget {
       required this.authToken,
       required this.fromUsername,
       required this.sk,
-      required this.baseUrl})
+      required this.baseUrl,
+      required this.chatProvider})
       : super(key: key);
 
   @override
@@ -30,13 +33,32 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   late WebSocketChannel channel;
-  final List<Message> _messages = [];
+  late Stream<dynamic> stream;
+  bool history = false;
+  final List<RawMessage> _messages = [];
   final TextEditingController _textController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _connectToWebSocket();
+    stream = _joinChat().asStream();
+  }
+
+  Future<void> _joinChat() async {
+    List<Message> messages = await widget.chatProvider.joinChat(widget.chatID);
+    for (var messageDetails in messages) {
+      _messages.insert(
+          0,
+          RawMessage(
+            text: decryptMessage(sSk: widget.sk, combined: messageDetails.msg!),
+            sender: messageDetails.sender!,
+            isMe: messageDetails.isMe!,
+          ));
+    }
+    setState(() {
+      history = true;
+      _connectToWebSocket();
+    });
   }
 
   void _connectToWebSocket() {
@@ -47,6 +69,7 @@ class _ChatScreenState extends State<ChatScreen> {
       'ws://${widget.baseUrl}:8080/chat/${widget.chatID}',
       headers: headers,
     );
+    stream = channel.stream;
   }
 
   @override
@@ -59,13 +82,13 @@ class _ChatScreenState extends State<ChatScreen> {
         children: <Widget>[
           Flexible(
             child: StreamBuilder(
-              stream: channel.stream,
+              stream: stream,
               builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
                 if (snapshot.hasError) {
                   return Text('Error: ${snapshot.error}');
                 }
 
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState == ConnectionState.waiting || !history) {
                   return const Center(
                     child: CircularProgressIndicator(),
                   );
@@ -78,11 +101,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   );
                 }
 
-                final messages = jsonDecode(snapshot.data.toString());
+                List<dynamic> messages = List.castFrom(jsonDecode(snapshot.data.toString()));
+                widget.chatProvider.addMessages(messages);
                 for (var messageDetails in messages) {
                   _messages.insert(
                       0,
-                      Message(
+                      RawMessage(
                         text: decryptMessage(sSk: widget.sk, combined: messageDetails['msg'].cast<int>()),
                         sender: messageDetails['sender'],
                         isMe: messageDetails['isMe'],
@@ -141,16 +165,17 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     // Close WebSocket connection when disposing the widget
     channel.sink.close();
+    widget.chatProvider.leaveChat();
     super.dispose();
   }
 }
 
-class Message {
+class RawMessage {
   final String text;
   final String sender;
   final bool isMe;
 
-  Message({required this.text, required this.sender, required this.isMe});
+  RawMessage({required this.text, required this.sender, required this.isMe});
 
   Map<String, dynamic> toJson() {
     return {
@@ -162,7 +187,7 @@ class Message {
 }
 
 class ChatMessage extends StatelessWidget {
-  final Message message;
+  final RawMessage message;
 
   const ChatMessage({Key? key, required this.message}) : super(key: key);
 

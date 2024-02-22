@@ -1,5 +1,6 @@
 import 'package:client/src/app_http_client.dart';
 import 'package:client/src/providers/auth_provider.dart';
+import 'package:client/src/providers/chat_provider.dart';
 import 'package:client/src/providers/key_provider.dart';
 import 'package:client/src/screens/auth/login_screen.dart';
 import 'package:client/src/screens/chat/ai_assistant_screen.dart';
@@ -133,15 +134,17 @@ class _InboxScreen extends State<InboxScreen> {
                   Text('2h ago'), // You can use a more complex widget here
               onTap: () {
                 final keyProvider = Provider.of<KeyProvider>(context, listen: false);
+                final chatProvider = Provider.of<ChatProvider>(context, listen: false);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                       builder: (context) => ChatScreen(
-                            chatID: data[index]['chat_id'],
+                            chatID: data[index]['chat_id'] as int,
                             authToken: authToken,
                             fromUsername: data[index]['username'],
                             sk: keyProvider.getSharedKey(data[index]['email']),
-                            baseUrl: baseUrl
+                            baseUrl: baseUrl,
+                            chatProvider: chatProvider,
                           )),
                 );
               },

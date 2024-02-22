@@ -58,7 +58,7 @@ class AuthProvider extends ChangeNotifier {
         if (loginResponse.statusCode == 418) {
           await keyProvider.generateKeysForEmail(email);
           await keyProvider.setGlobalKeyValues(email);
-          print(keyProvider.keysJson);
+          
           var requestForm = await signAndPublish(keyJson: keyProvider.keysJson);
           
           final keyUploadResponse = await AppHttpClient.post(

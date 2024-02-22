@@ -25,7 +25,7 @@ class KeyProvider extends ChangeNotifier {
   String get keysJson => jsonEncode(_userKeys!);
 
   KeyProvider() {
-    AppLogger.instance.i('AppSupportDirectoryProvider(): initialized');
+    AppLogger.instance.i('KeyProvider(): initialized');
     initKeyProvider();
   }
 
