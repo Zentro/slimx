@@ -1,4 +1,5 @@
-import 'package:client/src/models/user_model.dart';
+import 'package:client/src/app_logger.dart';
+import 'package:client/src/providers/chat_provider.dart';
 import 'package:client/src/providers/key_provider.dart';
 import 'package:client/src/screens/chat/inbox_screen.dart';
 import 'package:client/src/user.dart';
@@ -9,7 +10,9 @@ import 'package:provider/provider.dart';
 import 'package:client/src/providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({
+    Key? key
+  }) : super(key: key);
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -52,15 +55,32 @@ class _LoginScreenState extends State<LoginScreen> {
     if (sizingInformation.deviceScreenType == DeviceScreenType.desktop) {
       return _buildDesktopScreen();
     } else if (sizingInformation.deviceScreenType == DeviceScreenType.tablet) {
-      return _buildTabletScreen();
+      return _buildDesktopScreen();
     } else {
       return _buildMobileScreen();
     }
   }
 
   Widget _buildDesktopScreen() {
-    return Container(
-      child: const Text('Desktop'),
+    return TextButton(
+      onPressed: () {
+        try {
+          final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+          final keyProvider = Provider.of<KeyProvider>(context, listen: false);
+          chatProvider.debugCLEAR();
+          keyProvider.debugCLEAR();
+          setState(() {
+            const snackBar = SnackBar(
+              content: Text("Local databse has been reset"),
+              duration: Duration(seconds: 3),
+            );
+            ScaffoldMessenger.of(context).showSnackBar(snackBar);
+          });
+        } catch (e) {
+          _showError(e.toString());
+        }
+      },
+      child: const Text('Delete all stored data'),
     );
   }
 
@@ -88,8 +108,6 @@ class _LoginScreenState extends State<LoginScreen> {
               final keyProvider =
                   Provider.of<KeyProvider>(context, listen: false);
               await _login(authProvider, keyProvider, (updatedUser) {
-                // Provider.of<UserModel>(context, listen: false)
-                //     .updateUser(updatedUser);
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => const InboxScreen()),

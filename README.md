@@ -12,9 +12,10 @@ Messages are only locally decrypted at the client side. Server merely acts as a 
 Messages are encrypted with AES-256 (though without an associated data so far). 
 The PQKEM used is the Kyber library from Argyle-Software. 
 
-## What's next for it?
-I think there are so many little features we want to add to it, so we likely will continue to 
-work on this.
+## What's the next big thing for it? (updated from time to time)
+The Double Ratchet Algorithm!!! There is currently no forward secrecy so any compromise 
+of the shared key immediately means that the conversation will be entirely visible, which 
+is NOT good :(
 
 ## How to run/build
 For the server:
@@ -26,6 +27,7 @@ For the server:
 > easier on Linux).
 > 
 > Run 'diesel migration run' in the /server folder to setup the database.
+> Anytime you want to just drop the database, just do 'diesel migration redo -n 7'
 > 
 > Then, 'cargo run' will start up the server.
 
@@ -36,3 +38,6 @@ For the client:
 > Run 'flutter_rust_bridge_codegen generate' just in case.
 >   
 > Run 'flutter run' to start the client.
+>
+> You'll have to resize the client for it to switch to mobile mode. Currently, the
+> desktop/tablet screen is used as a debug button to also wipe all stored data.
