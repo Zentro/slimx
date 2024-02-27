@@ -12,7 +12,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 ///The force argument will forcefully override all currently present
 ///keys in the client folder. Note that this will require a complete
 ///reupload of all keys to the server.
-String generateKeys({dynamic hint}) =>
+Future<String> generateKeys({dynamic hint}) =>
     RustLib.instance.api.generateKeys(hint: hint);
 
 String signChallenge(
@@ -40,7 +40,7 @@ Future<String> completeHandshake(
         required String sIkSec,
         required String sSpkSec,
         required String sPqpkSec,
-        required String sOpkSec,
+        String? sOpkSec,
         dynamic hint}) =>
     RustLib.instance.api.completeHandshake(
         handshake: handshake,

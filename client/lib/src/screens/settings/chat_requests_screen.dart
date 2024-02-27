@@ -78,20 +78,20 @@ class _ChatRequestScreen extends State<ChatRequestScreen> {
     String sIkSec = keyProvider.ikSec;
     String sSpkSec = keyProvider.spkSec;
     String sPqpkSec;
-    String sOpkSec;
+    String? sOpkSec;
     
     if (pqpkHash == null) {
       sPqpkSec = keyProvider.pqspkSec;
     } else {
       // They used a key from you, need to delete it after using
-      var pqopkPair = keyProvider.popPqopkPair(pqpkHash);
+      var pqopkPair = await keyProvider.popPqopkPair(pqpkHash);
       sPqpkSec = pqopkPair.$1;
     }
 
     if (opkHash == null) {
-      sOpkSec = "";
+      sOpkSec = null;
     } else {
-      var opkPair = keyProvider.popOpkPair(opkHash);
+      var opkPair = await keyProvider.popOpkPair(opkHash);
       sOpkSec = opkPair.$1;
     }
 

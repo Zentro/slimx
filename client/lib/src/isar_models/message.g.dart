@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'chat_provider.dart';
+part of 'message.dart';
 
 // **************************************************************************
 // IsarCollectionGenerator
@@ -53,7 +53,21 @@ const MessageSchema = CollectionSchema(
   deserialize: _messageDeserialize,
   deserializeProp: _messageDeserializeProp,
   idName: r'id',
-  indexes: {},
+  indexes: {
+    r'created': IndexSchema(
+      id: 9089682803336859617,
+      name: r'created',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'created',
+          type: IndexType.value,
+          caseSensitive: false,
+        )
+      ],
+    )
+  },
   links: {},
   embeddedSchemas: {},
   getId: _messageGetId,
@@ -162,6 +176,14 @@ extension MessageQueryWhereSort on QueryBuilder<Message, Message, QWhere> {
       return query.addWhereClause(const IdWhereClause.any());
     });
   }
+
+  QueryBuilder<Message, Message, QAfterWhere> anyCreated() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'created'),
+      );
+    });
+  }
 }
 
 extension MessageQueryWhere on QueryBuilder<Message, Message, QWhereClause> {
@@ -225,6 +247,116 @@ extension MessageQueryWhere on QueryBuilder<Message, Message, QWhereClause> {
         lower: lowerId,
         includeLower: includeLower,
         upper: upperId,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<Message, Message, QAfterWhereClause> createdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'created',
+        value: [null],
+      ));
+    });
+  }
+
+  QueryBuilder<Message, Message, QAfterWhereClause> createdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'created',
+        lower: [null],
+        includeLower: false,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<Message, Message, QAfterWhereClause> createdEqualTo(
+      int? created) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'created',
+        value: [created],
+      ));
+    });
+  }
+
+  QueryBuilder<Message, Message, QAfterWhereClause> createdNotEqualTo(
+      int? created) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'created',
+              lower: [],
+              upper: [created],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'created',
+              lower: [created],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'created',
+              lower: [created],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'created',
+              lower: [],
+              upper: [created],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<Message, Message, QAfterWhereClause> createdGreaterThan(
+    int? created, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'created',
+        lower: [created],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<Message, Message, QAfterWhereClause> createdLessThan(
+    int? created, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'created',
+        lower: [],
+        upper: [created],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<Message, Message, QAfterWhereClause> createdBetween(
+    int? lowerCreated,
+    int? upperCreated, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'created',
+        lower: [lowerCreated],
+        includeLower: includeLower,
+        upper: [upperCreated],
         includeUpper: includeUpper,
       ));
     });

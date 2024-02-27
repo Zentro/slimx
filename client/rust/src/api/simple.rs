@@ -35,7 +35,6 @@ The force argument will forcefully override all currently present
 keys in the client folder. Note that this will require a complete
 reupload of all keys to the server.
 */
-#[flutter_rust_bridge::frb(sync)]
 pub fn generate_keys() -> String {
     // PQPK
     let pqspk_pair = keypair(&mut StdRng::from_entropy()).unwrap();
@@ -216,15 +215,23 @@ pub fn init_handshake(key_bundle: String, s_ik_pub: String, s_ik_sec: String) ->
     let mut spk_b_sig: [u8; 64] = [0; 64];
     let mut pqpk_b: [u8; KYBER_PUBLICKEYBYTES] = [0; KYBER_PUBLICKEYBYTES];
     let mut pqpk_b_sig: [u8; 64] = [0; 64];
-    let mut opk_b: [u8; 32] = [0; 32];
     let handshake_id = keys_b["handshake_id"].as_u64().unwrap();
     hex::decode_to_slice(keys_b["ik"].as_str().unwrap(), &mut ik_b).unwrap();
     hex::decode_to_slice(keys_b["spk"].as_str().unwrap(), &mut spk_b).unwrap();
     hex::decode_to_slice(keys_b["spk_sig"].as_str().unwrap(), &mut spk_b_sig).unwrap();
     hex::decode_to_slice(keys_b["pqpk"].as_str().unwrap(), &mut pqpk_b).unwrap();
     hex::decode_to_slice(keys_b["pqpk_sig"].as_str().unwrap(), &mut pqpk_b_sig).unwrap();
-    hex::decode_to_slice(keys_b["opk"].as_str().unwrap(), &mut opk_b).unwrap();
 
+    // Check if opk is provided
+    let mut opk_b: [u8; 32] = [0; 32];
+    let opk_provided: bool = match keys_b["opk"].as_str() {
+        Some(s) => {
+            hex::decode_to_slice(s, &mut opk_b).unwrap();
+            true
+        },
+        None => false,
+    };
+    
     // Verify signatures
     let b1 = xeddsa::verify(ik_b.clone(), spk_b.to_vec(), spk_b_sig);
     let b2 = xeddsa::verify(ik_b.clone(), pqpk_b.to_vec(), pqpk_b_sig);
@@ -250,9 +257,12 @@ pub fn init_handshake(key_bundle: String, s_ik_pub: String, s_ik_sec: String) ->
     let dh1 = x25519(ik_sec.clone(), spk_b.clone());
     let dh2 = x25519(ek_sec.to_bytes(), ik_b.clone());
     let dh3 = x25519(ek_sec.to_bytes(), spk_b.clone());
-    let dh4 = x25519(ek_sec.to_bytes(), opk_b.clone());
-
-    let km = [dh1, dh2, dh3, dh4, ss].concat();
+    let mut km = [dh1, dh2, dh3].concat();
+    if opk_provided {
+        let dh4 = x25519(ek_sec.to_bytes(), opk_b.clone());
+        km = [km, dh4.to_vec()].concat();
+    }
+    km = [km, ss.to_vec()].concat();
     let sk = kdf(km);
 
     // Compute associated data
@@ -304,7 +314,7 @@ pub fn complete_handshake(
     s_ik_sec: String,
     s_spk_sec: String,
     s_pqpk_sec: String,
-    s_opk_sec: String
+    s_opk_sec: Option<String>
 ) -> String {
     let hs: Handshake = serde_json::from_str(&handshake).unwrap();
     let mut ik_other: [u8; 32] = [0; 32];
@@ -321,7 +331,9 @@ pub fn complete_handshake(
     hex::decode_to_slice(s_ik_sec, &mut ik_sec).unwrap();
     hex::decode_to_slice(s_spk_sec, &mut spk_sec).unwrap();
     hex::decode_to_slice(s_pqpk_sec, &mut pqpk_sec).unwrap();
-    hex::decode_to_slice(s_opk_sec, &mut opk_sec).unwrap();
+    if s_opk_sec.is_some() {
+        hex::decode_to_slice(s_opk_sec.as_ref().unwrap(), &mut opk_sec).unwrap();
+    }
 
     // Get key from the KEM
     let mut pqkem_ct: [u8; KYBER_CIPHERTEXTBYTES] = [0; KYBER_CIPHERTEXTBYTES];
@@ -332,10 +344,14 @@ pub fn complete_handshake(
     let dh1 = x25519(spk_sec.clone(), ik_other.clone());
     let dh2 = x25519(ik_sec.clone(), ek_other.clone());
     let dh3 = x25519(spk_sec.clone(), ek_other.clone());
-    let dh4 = x25519(opk_sec.clone(), ek_other.clone());
+    let mut km = [dh1, dh2, dh3].concat();
+    if s_opk_sec.is_some() {
+        let dh4 = x25519(opk_sec.clone(), ek_other.clone());
+        km = [km, dh4.to_vec()].concat();
+    }
 
     // Derive the secret shared key
-    let km = [dh1, dh2, dh3, dh4, ss].concat();
+    km = [km, ss.to_vec()].concat();
     let sk = kdf(km);
 
     // Separate the first handshake message accordingly

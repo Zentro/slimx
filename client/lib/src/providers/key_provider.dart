@@ -2,29 +2,31 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:client/src/app_logger.dart';
-import 'package:client/src/keys.dart';
+import 'package:client/src/isar_models/keys.dart';
 import 'package:client/src/rust/api/simple.dart';
 import 'package:flutter/material.dart';
+import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class KeyProvider extends ChangeNotifier {
+  final Isar _isar;
+  
   Keys? _userKeys;
   Map<String, String>? _sharedKeys;
 
   late SharedPreferences _prefs;
-  late String _keysFilePath;
   late String _sharedFilePath;
 
-  String get ikSec => _userKeys!.ikSec;
-  String get ikPub => _userKeys!.ikPub;
-  String get spkSec => _userKeys!.spkSec;
-  String get spkPub => _userKeys!.spkPub;
-  String get pqspkSec => _userKeys!.pqspkSec;
-  String get pqspkPub => _userKeys!.pqspkPub;
+  String get ikSec => _userKeys!.ikSec!;
+  String get ikPub => _userKeys!.ikPub!;
+  String get spkSec => _userKeys!.spkSec!;
+  String get spkPub => _userKeys!.spkPub!;
+  String get pqspkSec => _userKeys!.pqspkSec!;
+  String get pqspkPub => _userKeys!.pqspkPub!;
   String get keysJson => jsonEncode(_userKeys!);
 
-  KeyProvider() {
+  KeyProvider(this._isar) {
     AppLogger.instance.i('KeyProvider(): initialized');
     initKeyProvider();
   }
@@ -33,15 +35,6 @@ class KeyProvider extends ChangeNotifier {
     Directory appSupportDir = await getApplicationSupportDirectory();
     var path = appSupportDir.path;
     _prefs = await SharedPreferences.getInstance();
-
-    _keysFilePath = '$path/userKeys.json';
-    File keysFile = File(_keysFilePath);
-    // Make the keys file if it doesn't exist
-    if (!keysFile.existsSync()) {
-      keysFile.createSync();
-      await keysFile.writeAsString(jsonEncode(<String, String>{}));
-      AppLogger.instance.i('The userKeys.json was created.');
-    }
 
     _sharedFilePath = '$path/sharedKeys.json';
     File sharedFile = File(_sharedFilePath);
@@ -58,22 +51,28 @@ class KeyProvider extends ChangeNotifier {
   ///
   /// Returns false if the user already has keys generated
   Future<bool> generateKeysForEmail(String email) async {
-    File keysFile = File(_keysFilePath);
-    File sharedFile = File(_sharedFilePath);
-    // Make keys and dump if they don't have keys
-    Map<String, String> emailKeys =
-        Map.castFrom(jsonDecode(await keysFile.readAsString()));
-    Map<String, String> emailSharedKeys =
-        Map.castFrom(jsonDecode(await sharedFile.readAsString()));
-    if (emailKeys.containsKey(email) || emailSharedKeys.containsKey(email)) {
+    // Keys for this email already exists
+    if (!await _isar.keys.filter().emailEqualTo(email).isEmpty()) {
       return false;
     }
 
-    emailKeys[email] = generateKeys();
+    // Dump into database
+    await _isar.writeTxn(() async {
+      _isar.keys.put(Keys.fromJson(jsonDecode(await generateKeys()), email));
+    });
+
+    // LOCAL IMPLEMENTATION
+    File sharedFile = File(_sharedFilePath);
+    // Make keys and dump if they don't have keys
+    Map<String, String> emailSharedKeys =
+        Map.castFrom(jsonDecode(await sharedFile.readAsString()));
+    if (emailSharedKeys.containsKey(email)) {
+      return false;
+    }
+
     emailSharedKeys[email] = jsonEncode(<String, String>{});
 
     // dump it out again to update
-    keysFile.writeAsStringSync(jsonEncode(emailKeys));
     sharedFile.writeAsStringSync(jsonEncode(emailSharedKeys));
 
     return true;
@@ -84,21 +83,17 @@ class KeyProvider extends ChangeNotifier {
   /// Fails if the user with email has not been initialized.
   Future<bool> setGlobalKeyValues(String email) async {
     try {
-      File keysFile = File(_keysFilePath);
       File sharedFile = File(_sharedFilePath);
-      Map<String, String> emailKeys =
-          Map.castFrom(jsonDecode(await keysFile.readAsString()));
       Map<String, String> emailSharedKeys =
           Map.castFrom(jsonDecode(await sharedFile.readAsString()));
 
-      String? jsonUserKeys = emailKeys[email];
       String? jsonSharedKeys = emailSharedKeys[email];
+      Keys? userKeys = await _isar.keys.filter().emailEqualTo(email).findFirst();
 
-      if (jsonUserKeys == null || jsonSharedKeys == null) {
+      if (userKeys == null || jsonSharedKeys == null) {
         return false;
       }
-
-      _userKeys = Keys.fromJson(jsonDecode(jsonUserKeys));
+      _userKeys = userKeys;
       _sharedKeys = Map.castFrom(jsonDecode(jsonSharedKeys));
 
       notifyListeners();
@@ -109,30 +104,38 @@ class KeyProvider extends ChangeNotifier {
     }
   }
 
-  /// Pops the Opk pair from the user keys.
-  /// 
-  /// Also updates the on disk file.
-  (String, String) popOpkPair(String hash) {
-    var temp = _userKeys!.opkMap[hash]!;
-    _userKeys!.opkMap.remove(hash);
-
-    _dumpKeys();
-    return (temp[0] as String, temp[1] as String);
+  /// Called on logout
+  void logout() {
+    _userKeys = null;
+    _sharedKeys = null;
   }
 
-  /// Pops the Pqopk pair from the user keys.
-  /// 
+  /// Pops the Opk pair from the user keys. 
   /// Also updates the on disk file.
-  (String, String) popPqopkPair(String hash) {
-    var temp = _userKeys!.pqopkMap[hash]!;
-    _userKeys!.pqopkMap.remove(hash);
+  /// 
+  /// Returns a tuple (sk, pk)
+  Future<(String, String)> popOpkPair(String hash) async {
+    return _isar.writeTxn(() async {
+      var temp = _userKeys!.opkMap[hash]!;
+      _userKeys!.opkMap.remove(hash);
 
-    _dumpKeys();
-    return (temp[0] as String, temp[1] as String);
+      _isar.keys.put(_userKeys!);
+      return (temp[0] as String, temp[1] as String);
+    });
   }
 
-  String getSharedKey(String email) {
-    return _sharedKeys![email]!;
+  /// Pops the Pqopk pair from the user keys. 
+  /// Also updates the on disk file.
+  /// 
+  /// Returns a tuple (sk, pk)
+  Future<(String, String)> popPqopkPair(String hash) async {
+    return _isar.writeTxn(() async {
+      var temp = _userKeys!.pqopkMap[hash]!;
+      _userKeys!.pqopkMap.remove(hash);
+
+      _isar.keys.put(_userKeys!);
+      return (temp[0] as String, temp[1] as String);
+    });
   }
 
   /// Associate this email with this shared key.
@@ -146,28 +149,17 @@ class KeyProvider extends ChangeNotifier {
     sharedFile.writeAsString(jsonEncode(emailSharedKeys));
   }
 
-  /// Called on logout
-  void logout() {
-    _userKeys = null;
-    _sharedKeys = null;
-  }
-  
-  /// Dumps the current state of the keys in memory
-  /// into the keys file.
-  void _dumpKeys() {
-    File keysFile = File(_keysFilePath);
-    var emailKeys = jsonDecode(keysFile.readAsStringSync());
-    var currEmail = _prefs.getString('currEmail')!;
-    emailKeys[currEmail] = jsonEncode(_userKeys);
-    keysFile.writeAsStringSync(jsonEncode(emailKeys));
+  String getSharedKey(String email) {
+    return _sharedKeys![email]!;
   }
 
   /// A function for easy debugging. Clears all stored data regarding keys.
   void debugCLEAR() {
-    File keysFile = File(_keysFilePath);
     File sharedFile = File(_sharedFilePath);
 
-    keysFile.writeAsStringSync(jsonEncode(<String, String>{}));
+    _isar.writeTxnSync(() {
+      _isar.keys.clearSync();
+    });
     sharedFile.writeAsString(jsonEncode(<String, String>{}));
   }
 }

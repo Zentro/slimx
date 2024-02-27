@@ -1,3 +1,5 @@
+import 'package:client/src/isar_models/keys.dart';
+import 'package:client/src/isar_models/message.dart';
 import 'package:client/src/providers/chat_provider.dart';
 import 'package:client/src/screens/auth/register_screen.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +9,8 @@ import 'package:client/src/providers/auth_provider.dart';
 import 'package:client/src/providers/key_provider.dart';
 import 'package:client/src/screens/auth/login_screen.dart';
 import 'package:client/src/screens/chat/inbox_screen.dart';
+import 'package:isar/isar.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:platform/platform.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -37,7 +41,7 @@ Hostname: ${platform.localHostname}
   OpenAI.apiKey = 'nuhuh';
   OpenAI.showLogs = true;
 
-  // todo: move this later
+  // General application globals
   SharedPreferences prefs = await SharedPreferences.getInstance();
   await prefs.clear();
   const String baseUrl = "127.0.0.1";
@@ -45,12 +49,19 @@ Hostname: ${platform.localHostname}
   prefs.setString('apiUrl', 'http://$baseUrl:8080');
 
   await RustLib.init();
+
+  // Open the database
+  final dir = await getApplicationSupportDirectory();
+  Isar isar = await Isar.open(
+    [MessageSchema, KeysSchema],
+    directory: dir.path,
+  );
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => KeyProvider()),
-        ChangeNotifierProvider(create: (_) => ChatProvider())
+        ChangeNotifierProvider(create: (_) => KeyProvider(isar)),
+        ChangeNotifierProvider(create: (_) => ChatProvider(isar))
       ],
       child: const App(),
     ),

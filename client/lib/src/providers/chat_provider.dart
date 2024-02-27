@@ -1,38 +1,16 @@
 import 'package:client/src/app_logger.dart';
+import 'package:client/src/isar_models/message.dart';
 import 'package:flutter/material.dart';
 import 'package:isar/isar.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-part 'chat_provider.g.dart';
-
-@collection
-class Message {
-  Id id = Isar.autoIncrement;
-
-  int? chatId;
-  String? recipient;
-
-  int? created;
-  String? sender;
-  bool? isMe;
-  List<int>? msg;
-
-  void fromJson(Map<String, dynamic> json) {
-    created = json['created'] as int;
-    sender = json['sender'] as String;
-    isMe = json['isMe'] as bool;
-    msg = json['msg'].cast<int>();
-  }
-}
-
 class ChatProvider extends ChangeNotifier {
+  final Isar _isar;
+
   int? _chatId;
   String? _currEmail;
 
-  late Isar _isar;
-
-  ChatProvider() {
+  ChatProvider(this._isar) {
     AppLogger.instance.i("ChatProvider(): initialized");
     initChatProvider();
   }
@@ -40,17 +18,17 @@ class ChatProvider extends ChangeNotifier {
   Future<void> initChatProvider() async {
     _chatId = null;
     _currEmail = null;
-    final dir = await getApplicationSupportDirectory();
-    _isar = await Isar.open(
-      [MessageSchema],
-      directory: dir.path,
-    );
   }
 
   Future<List<Message>> joinChat(int chatId) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     _chatId = chatId;
     _currEmail = prefs.getString('currEmail')!;
+    // This jank is solely because the database has to deal with possible more than
+    // 1 user on the same computer and they are talking to each other.
+    // Will likely make it so that you can only have one account to a device.
+    // Ideally chat info is also stored locally and messages are associated only with
+    // chat_id rather than also with recipient.
     var messages = _isar.messages.filter()
       .chatIdEqualTo(_chatId)
       .and()
@@ -87,7 +65,7 @@ class ChatProvider extends ChangeNotifier {
   /// Clears everything in the database.
   void debugCLEAR() {
     _isar.writeTxnSync(() {
-      _isar.clearSync();
+      _isar.messages.clearSync();
     });
   }
 }
