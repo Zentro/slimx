@@ -1,16 +1,7 @@
 use diesel::prelude::*;
 use serde_derive::Serialize;
-
-use crate::schema::{
-    users, 
-    perm_keys, 
-    onetime_keys, 
-    onetime_pqkem, 
-    handshakes,
-    chats,
-    messages
-};
 use chrono::NaiveDateTime;
+use crate::schema::*;
 
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq, Serialize)]
 #[diesel(table_name = users)]

@@ -1,8 +1,8 @@
 use std::{sync::Arc, collections::HashMap};
 use tokio::sync::{mpsc, RwLock};
-
 use serde_derive::{Deserialize, Serialize};
 use warp::filters::ws::Message;
+
 pub type Issuer = Arc<auth::Issuer>;
 pub type Users = Arc<RwLock<HashMap<u64, mpsc::UnboundedSender<Message>>>>;
 pub type Challenges = Arc<RwLock<HashMap<String, ([u8; 32], String, String)>>>;
