@@ -29,12 +29,13 @@ class ChatProvider extends ChangeNotifier {
     // Will likely make it so that you can only have one account to a device.
     // Ideally chat info is also stored locally and messages are associated only with
     // chat_id rather than also with recipient.
-    var messages = _isar.messages.filter()
-      .chatIdEqualTo(_chatId)
-      .and()
-      .recipientEqualTo(_currEmail)
-      .sortByCreated()
-      .findAll();
+    var messages = _isar.messages
+        .filter()
+        .chatIdEqualTo(_chatId)
+        .and()
+        .recipientEqualTo(_currEmail)
+        .sortByCreated()
+        .findAll();
     return messages;
   }
 

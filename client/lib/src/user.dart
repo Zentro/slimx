@@ -12,14 +12,12 @@ class User {
     this.phone = "",
   });
 
-
-
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'],
-      username: json['username'],
-      email: json['email'],
-      phone: json['phone']
-    );
+        id: json['id'],
+        username: json['username'],
+        email: json['email'],
+        phone: json['phone']
+      );
   }
 }

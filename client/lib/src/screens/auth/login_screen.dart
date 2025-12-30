@@ -1,4 +1,3 @@
-import 'package:client/src/app_logger.dart';
 import 'package:client/src/providers/chat_provider.dart';
 import 'package:client/src/providers/key_provider.dart';
 import 'package:client/src/screens/chat/inbox_screen.dart';
@@ -10,9 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:client/src/providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({
-    Key? key
-  }) : super(key: key);
+  const LoginScreen({Key? key}) : super(key: key);
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();

@@ -8,6 +8,7 @@
 .buildlog/
 .history
 .svn/
+.vscode/
 migrate_working_dir/
 
 # IntelliJ related
@@ -30,6 +31,10 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+
+# Flutter Rust Bridge related
+lib/src/rust/*
+rust/src/frb*
 
 # Symbolication related
 app.*.symbols

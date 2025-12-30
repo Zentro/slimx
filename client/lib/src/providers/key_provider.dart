@@ -11,19 +11,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class KeyProvider extends ChangeNotifier {
   final Isar _isar;
-  
+
   Keys? _userKeys;
   Map<String, String>? _sharedKeys;
 
   late SharedPreferences _prefs;
   late String _sharedFilePath;
 
-  String get ikSec => _userKeys!.ikSec!;
-  String get ikPub => _userKeys!.ikPub!;
-  String get spkSec => _userKeys!.spkSec!;
-  String get spkPub => _userKeys!.spkPub!;
-  String get pqspkSec => _userKeys!.pqspkSec!;
-  String get pqspkPub => _userKeys!.pqspkPub!;
+  String get ikSec => _userKeys!.ikSec;
+  String get ikPub => _userKeys!.ikPub;
+  String get spkSec => _userKeys!.spkSec;
+  String get spkPub => _userKeys!.spkPub;
+  String get pqspkSec => _userKeys!.pqspkSec;
+  String get pqspkPub => _userKeys!.pqspkPub;
   String get keysJson => jsonEncode(_userKeys!);
 
   KeyProvider(this._isar) {
@@ -79,7 +79,7 @@ class KeyProvider extends ChangeNotifier {
   }
 
   /// Takes in an email and tries to set the global variables for keys
-  /// 
+  ///
   /// Fails if the user with email has not been initialized.
   Future<bool> setGlobalKeyValues(String email) async {
     try {
@@ -110,9 +110,9 @@ class KeyProvider extends ChangeNotifier {
     _sharedKeys = null;
   }
 
-  /// Pops the Opk pair from the user keys. 
+  /// Pops the Opk pair from the user keys.
   /// Also updates the on disk file.
-  /// 
+  ///
   /// Returns a tuple (sk, pk)
   Future<(String, String)> popOpkPair(String hash) async {
     return _isar.writeTxn(() async {
@@ -124,9 +124,9 @@ class KeyProvider extends ChangeNotifier {
     });
   }
 
-  /// Pops the Pqopk pair from the user keys. 
+  /// Pops the Pqopk pair from the user keys.
   /// Also updates the on disk file.
-  /// 
+  ///
   /// Returns a tuple (sk, pk)
   Future<(String, String)> popPqopkPair(String hash) async {
     return _isar.writeTxn(() async {
@@ -143,7 +143,7 @@ class KeyProvider extends ChangeNotifier {
     File sharedFile = File(_sharedFilePath);
     var currEmail = _prefs.getString('currEmail')!;
     _sharedKeys![email] = sk;
-    
+
     Map<String, String> emailSharedKeys = Map.castFrom(jsonDecode(sharedFile.readAsStringSync()));
     emailSharedKeys[currEmail] = jsonEncode(_sharedKeys);
     sharedFile.writeAsString(jsonEncode(emailSharedKeys));
